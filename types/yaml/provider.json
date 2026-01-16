@@ -169,7 +169,21 @@
             "properties": {
                 "headers": {
                     "type": "array",
-                    "items": {}
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "key": {
+                                "type": "string"
+                            },
+                            "value": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "key",
+                            "value"
+                        ]
+                    }
                 },
                 "path": {
                     "type": "array",

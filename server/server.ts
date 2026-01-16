@@ -68,6 +68,7 @@ export async function startServer() {
                 // todo: transform headers, token count, validation
 
                 schema.stripHeaders()
+                schema.overrideHeaders(provider.override.headers)
 
                 const response = await fetch(endpoint, {
                     method: schema.request.method,

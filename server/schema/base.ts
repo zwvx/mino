@@ -14,6 +14,12 @@ export class SchemaRequest {
         }
     }
 
+    overrideHeaders(headers: { key: string, value: string }[]) {
+        for (const header of headers) {
+            this.request.headers.set(header.key, header.value)
+        }
+    }
+
     cleanupResponseHeaders(headers: Headers) {
         const stripHeaders = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
         for (const header of stripHeaders) {

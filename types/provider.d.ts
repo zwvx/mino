@@ -2,6 +2,11 @@ export interface ProviderConfig {
     provider: Provider
 }
 
+export interface Header {
+    key: string;
+    value: string;
+}
+
 export interface Provider {
     id: string;
     keys_id: string;
@@ -43,7 +48,7 @@ export interface Payload {
 }
 
 export interface Override {
-    headers: any[];
+    headers: Header[];
     path: any[];
     models: any[];
 }
