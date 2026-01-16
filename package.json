@@ -1,0 +1,32 @@
+{
+  "name": "mino",
+  "type": "module",
+  "private": true,
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
+    "@google/genai": "^1.36.0",
+    "@types/bun": "latest",
+    "drizzle-kit": "^0.31.8",
+    "openai": "^6.16.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@elysiajs/cors": "^1.4.1",
+    "@elysiajs/html": "^1.4.0",
+    "cac": "^6.7.14",
+    "cacheable": "^2.3.1",
+    "drizzle-orm": "^0.45.1",
+    "elysia": "^1.4.21"
+  },
+  "scripts": {
+    "check": "bunx tsc --noEmit",
+    "server:dev": "bun server/index.ts --watch",
+    "server:prod": "NODE_ENV=production bun server/index.ts",
+    "db:generate": "bunx drizzle-kit generate",
+    "db:migrate": "bun cli/migrate.ts",
+    "db:push": "bunx drizzle-kit push"
+  }
+}

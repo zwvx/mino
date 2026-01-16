@@ -1,0 +1,262 @@
+{
+    "$schema": "http://json-schema.org/draft-06/schema#",
+    "$ref": "#/definitions/Configuration",
+    "definitions": {
+        "Configuration": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "provider": {
+                    "$ref": "#/definitions/Provider"
+                }
+            },
+            "required": [
+                "provider"
+            ],
+            "title": "Configuration"
+        },
+        "Provider": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "keys_id": {
+                    "type": "string"
+                },
+                "enable": {
+                    "type": "boolean"
+                },
+                "hidden": {
+                    "type": "boolean"
+                },
+                "require_auth": {
+                    "type": "boolean"
+                },
+                "endpoint": {
+                    "$ref": "#/definitions/Endpoint"
+                },
+                "schema": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Schema"
+                    }
+                },
+                "limit": {
+                    "$ref": "#/definitions/Limit"
+                },
+                "pricing": {
+                    "$ref": "#/definitions/Pricing"
+                },
+                "concurrency": {
+                    "$ref": "#/definitions/Concurrency"
+                },
+                "override": {
+                    "$ref": "#/definitions/Override"
+                },
+                "filter_models": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "scripts": {
+                    "$ref": "#/definitions/Scripts"
+                }
+            },
+            "required": [
+                "concurrency",
+                "enable",
+                "endpoint",
+                "filter_models",
+                "hidden",
+                "id",
+                "keys_id",
+                "limit",
+                "override",
+                "pricing",
+                "require_auth",
+                "schema",
+                "scripts"
+            ],
+            "title": "Provider"
+        },
+        "Concurrency": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "identity": {
+                    "type": "integer"
+                },
+                "keys": {
+                    "$ref": "#/definitions/Keys"
+                }
+            },
+            "required": [
+                "identity",
+                "keys"
+            ],
+            "title": "Concurrency"
+        },
+        "Keys": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "same_key": {
+                    "type": "integer"
+                },
+                "max_usage_same_key": {
+                    "type": "integer"
+                }
+            },
+            "required": [
+                "max_usage_same_key",
+                "same_key"
+            ],
+            "title": "Keys"
+        },
+        "Endpoint": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "default": {
+                    "type": "string",
+                    "format": "uri",
+                    "qt-uri-protocols": [
+                        "https"
+                    ]
+                }
+            },
+            "required": [
+                "default"
+            ],
+            "title": "Endpoint"
+        },
+        "Limit": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "payload": {
+                    "$ref": "#/definitions/Payload"
+                }
+            },
+            "required": [
+                "payload"
+            ],
+            "title": "Limit"
+        },
+        "Payload": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "input": {
+                    "type": "integer"
+                },
+                "output": {
+                    "type": "integer"
+                }
+            },
+            "required": [
+                "input",
+                "output"
+            ],
+            "title": "Payload"
+        },
+        "Override": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "headers": {
+                    "type": "array",
+                    "items": {}
+                },
+                "path": {
+                    "type": "array",
+                    "items": {}
+                },
+                "models": {
+                    "type": "array",
+                    "items": {}
+                }
+            },
+            "required": [
+                "headers",
+                "models",
+                "path"
+            ],
+            "title": "Override"
+        },
+        "Pricing": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "input": {
+                    "$ref": "#/definitions/PriceData"
+                },
+                "output": {
+                    "$ref": "#/definitions/PriceData"
+                }
+            },
+            "required": [
+                "input",
+                "output"
+            ],
+            "title": "Pricing"
+        },
+        "PriceData": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "value": {
+                    "type": "integer"
+                },
+                "token_scale": {
+                    "type": "integer"
+                }
+            },
+            "required": [
+                "token_scale",
+                "value"
+            ],
+            "title": "PriceData"
+        },
+        "Schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "upstream_path": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "upstream_path"
+            ],
+            "title": "Schema"
+        },
+        "Scripts": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "checker": {
+                    "type": "string"
+                },
+                "preflight": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "required": [
+                "checker",
+                "preflight"
+            ],
+            "title": "Scripts"
+        }
+    }
+}

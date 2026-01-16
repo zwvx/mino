@@ -1,0 +1,8 @@
+{
+    "yaml.schemas": {
+        "./types/yaml/provider.json": [
+            "data/providers/*.yml",
+            "data/providers/*.yaml"
+        ]
+    }
+}
