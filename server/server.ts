@@ -36,14 +36,12 @@ export async function startServer() {
             const provider = Mino.Memory.Providers[match.provider]
             if (!provider) return status(404)
 
-            // MARK: schema selection
             if (!identity.schema && provider.schema?.[0]) {
                 identity.schema = provider.schema[0].id as requestSchema.SchemaType
             }
 
             if (!identity.schema) return status(400)
 
-            // MARK: auth-key check
             if (provider.require_auth) {
                 if (!identity.user) return status(403)
 
@@ -61,12 +59,15 @@ export async function startServer() {
 
             if (!identity.key) return status(400)
 
+            const idCon = Mino.Memory.identityConcurrency.get(identity.key)
+            if (idCon >= provider.concurrency.identity) return status(429)
+
             const schemaMap = provider.schema.find((s) => s.id === identity.schema)
             if (!schemaMap) return status(400)
 
-            // todo: concurrency, limit
+            // todo: limit
 
-            let schema: SchemaRequestType
+            let schema: SchemaRequestType | undefined
             let providerKey: KeyData
 
             try {
@@ -82,12 +83,16 @@ export async function startServer() {
                 let retryCount = 0
                 const maxRetryCount = 10
 
+                if (schema.isChatCompletionEndpoint()) {
+                    Mino.Memory.identityConcurrency.incr(identity.key)
+                }
+
                 while (retryCount < maxRetryCount) {
                     providerKey = await Mino.Database.allocateProviderKey(identity.key, provider.keys_id)
                     schema.setProviderKey(providerKey.key)
 
                     const endpointType = providerKey.metadata?.endpoint || 'default'
-                    const endpoint = provider.endpoint[endpointType] + schemaMap.upstream_path + match.endpoint
+                    const endpoint = (provider.endpoint[endpointType] + schemaMap.upstream_path + match.endpoint).replace(/([^:]\/)\/+/g, '$1')
 
                     const response = await fetch(endpoint, {
                         method: schema.request.method,
@@ -95,7 +100,6 @@ export async function startServer() {
                         body: bodyBuffer
                     })
 
-                    // MARK: response check
                     if (!response.ok) {
                         let invalidateKey = false
 
@@ -133,7 +137,6 @@ export async function startServer() {
                         continue
                     }
 
-                    // MARK: response success
                     const respHeaders = new Headers(response.headers)
                     schema.cleanupResponseHeaders(respHeaders)
 
@@ -152,6 +155,10 @@ export async function startServer() {
             } catch (err) {
                 console.error(err)
                 return status(500)
+            } finally {
+                if (schema?.isChatCompletionEndpoint()) {
+                    Mino.Memory.identityConcurrency.decr(identity.key)
+                }
             }
         })
         .listen(serverPort, () => {

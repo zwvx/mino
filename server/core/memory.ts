@@ -74,4 +74,24 @@ export class MinoMemory {
             this.Client.delete(usedId)
         }
     }
+
+    identityConcurrency = {
+        get: (identity: string) => {
+            const id = `ic|${identity}`
+            const used = this.Client.get<number>(id)
+            return used || 0
+        },
+        incr: (identity: string) => {
+            const id = `ic|${identity}`
+            const used = this.Client.get<number>(id)
+            if (!used) return this.Client.set(id, 1)
+            this.Client.set(id, used + 1)
+        },
+        decr: (identity: string) => {
+            const id = `ic|${identity}`
+            const used = this.Client.get<number>(id)
+            if (used === undefined) return this.Client.set(id, 0)
+            if (used > 0) this.Client.set(id, used - 1)
+        }
+    }
 }

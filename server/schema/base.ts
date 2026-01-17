@@ -34,4 +34,8 @@ export class SchemaRequest {
             }
         }
     }
+
+    isChatCompletionEndpoint() {
+        return false
+    }
 }
