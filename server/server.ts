@@ -24,7 +24,7 @@ export async function startServer() {
             return 'mino.'
         })
         .all('/x/*', async ({ request, ip, identity, status }) => {
-            if (!['GET', 'POST', 'OPTIONS'].includes(request.method)) return status(403)
+            if (!['GET', 'POST'].includes(request.method)) return status(403)
 
             const pathname = new URL(request.url).pathname
             if (!pathname.startsWith('/x/')) return status(404)
@@ -34,6 +34,7 @@ export async function startServer() {
             if (!match) return status(404)
 
             const provider = Mino.Memory.Providers[match.provider]
+
             if (!provider) return status(404)
             if (identity.schema === 'unknown') return status(400)
 
