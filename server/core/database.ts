@@ -67,7 +67,10 @@ export class MinoDatabase {
         Mino.Memory.allocatedKey.updateKey(identity, keyData.providerKeyId, keyData)
         // Mino.Memory.allocatedKey.incrUsed(identity, keyData.providerKeyId)
 
-        console.log(`allocated key for <${identity}> to <${keyData.key.slice(0, 12)}...>`)
+        if (provider.concurrency.keys.max_usage_same_key > 1) {
+            console.log(`allocated key for <${identity}> to <${keyData.key.slice(0, 12)}...>`)
+        }
+
         return keyData
     }
 
