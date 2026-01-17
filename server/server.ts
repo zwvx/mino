@@ -12,6 +12,8 @@ import type { SchemaRequestType } from './schema'
 
 import type { KeyData } from './core/database'
 
+import { Index } from './views'
+
 export async function startServer() {
     const serverPort = Number(Bun.env.PORT || (Mino.isProduction ? 30180 : 30181))
 
@@ -21,7 +23,7 @@ export async function startServer() {
             if (!ip || !country) return status(403)
         })
         .get('/', () => {
-            return 'mino.'
+            return Index()
         })
         .all('/x/*', async ({ request, ip, country, identity, status }) => {
             if (!['GET', 'POST'].includes(request.method)) return status(403)
