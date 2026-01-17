@@ -105,4 +105,18 @@ export class MinoDatabase {
     async getUserAllowedProviders(userId: number) {
         return this.db.select().from(schema.userAllowedProvider).where(eq(schema.userAllowedProvider.userId, userId)).all()
     }
+
+    async incrProviderGeneratedToken(providerId: string, token: number) {
+        await this.db.update(schema.providers)
+            .set({ totalTokensGenerated: sql`total_tokens_generated + ${token}` })
+            .where(eq(schema.providers.id, providerId))
+            .run()
+    }
+
+    async incrProviderRequest(providerId: string) {
+        await this.db.update(schema.providers)
+            .set({ totalRequest: sql`total_request + 1` })
+            .where(eq(schema.providers.id, providerId))
+            .run()
+    }
 }

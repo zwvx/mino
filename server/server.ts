@@ -13,6 +13,7 @@ import type { SchemaRequestType } from './schema'
 import type { KeyData } from './core/database'
 
 import { Index } from './views'
+import { proxyResponseStream } from './utils/stream'
 
 export async function startServer() {
     const serverPort = Number(Bun.env.PORT || (Mino.isProduction ? 30180 : 30181))
@@ -62,20 +63,23 @@ export async function startServer() {
             if (!identity.key) return status(400)
 
             const idCon = Mino.Memory.identityConcurrency.get(identity.key)
-            if (idCon >= provider.concurrency.identity) return status(429)
+            if (idCon >= provider.concurrency.identity && identity.user?.tier !== 'ADMIN') {
+                return status(429)
+            }
 
             const schemaMap = provider.schema.find((s) => s.id === identity.schema)
             if (!schemaMap) return status(400)
 
-            // todo: limit
+            // todo: cooldown
 
             let schema: SchemaRequestType | undefined
             let providerKey: KeyData
+            let requestToken: number
 
             try {
                 schema = new requestSchema.default[identity.schema](request.clone())
 
-                // todo: transform headers, token count, validation
+                // todo: validation, preflight
 
                 schema.stripHeaders()
                 schema.overrideHeaders(provider.override.headers)
@@ -85,7 +89,15 @@ export async function startServer() {
                 let retryCount = 0
                 const maxRetryCount = 10
 
-                if (schema.isChatCompletionEndpoint()) {
+                if (schema.isChatCompletionEndpoint() && bodyBuffer) {
+                    requestToken = schema.getRequestToken(bodyBuffer)
+
+                    if (identity.user?.tier !== 'ADMIN') {
+                        if ((requestToken > provider.limit.payload.input)) {
+                            return status(400, schema.errorObject(`Token limit exceeded. Maximum ${provider.limit.payload.input} tokens.`, 'invalid_request_error', 'token_limit_exceeded'))
+                        }
+                    }
+
                     Mino.Memory.identityConcurrency.incr(identity.key)
                 }
 
@@ -110,10 +122,12 @@ export async function startServer() {
                                 Mino.Memory.allocatedKey.incrUsed(identity.key, provider.keys_id)
                             }
 
-                            return new Response(response.body, {
+                            return proxyResponseStream(new Response(response.body, {
                                 status: response.status,
                                 statusText: response.statusText,
                                 headers: response.headers
+                            }), (responseBody) => {
+                                console.log('stream finished (error 400)', responseBody)
                             })
                         }
 
@@ -146,10 +160,20 @@ export async function startServer() {
                         Mino.Memory.allocatedKey.incrUsed(identity.key, provider.keys_id)
                     }
 
-                    return new Response(response.body, {
+                    return proxyResponseStream(new Response(response.body, {
                         status: response.status,
                         statusText: response.statusText,
                         headers: respHeaders
+                    }), async (res) => {
+                        if (schema && schema.isChatCompletionEndpoint()) {
+                            // todo: log the chat?
+                            const { content, tokenCount } = schema.parseSSEChatResponse(res)
+
+                            const totalToken = requestToken + tokenCount
+                            await Mino.Database.incrProviderGeneratedToken(provider.id, totalToken)
+                        }
+
+                        await Mino.Database.incrProviderRequest(provider.id)
                     })
                 }
 

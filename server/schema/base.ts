@@ -38,4 +38,15 @@ export class SchemaRequest {
     isChatCompletionEndpoint() {
         return false
     }
+
+    getRequestToken(bodyBuffer: ArrayBuffer) {
+        return 0
+    }
+
+    parseSSEChatResponse(content: string) {
+        return {
+            content: '',
+            tokenCount: 0
+        }
+    }
 }
