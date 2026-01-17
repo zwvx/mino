@@ -97,4 +97,12 @@ export class MinoDatabase {
 
         console.log(`provider initialized into database`)
     }
+
+    async getUserFromToken(token: string) {
+        return this.db.select().from(schema.users).where(eq(schema.users.token, token)).get()
+    }
+
+    async getUserAllowedProviders(userId: number) {
+        return this.db.select().from(schema.userAllowedProvider).where(eq(schema.userAllowedProvider.userId, userId)).all()
+    }
 }

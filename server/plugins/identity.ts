@@ -2,7 +2,7 @@ import { Elysia } from 'elysia'
 import type { SchemaType } from '../schema'
 
 type Identity = {
-    schema: SchemaType | 'unknown'
+    schema: SchemaType | null
     key: string | null
     user: Awaited<ReturnType<typeof Mino.Database.getUserToken>> | null
 }
@@ -10,7 +10,7 @@ type Identity = {
 export const identity = (app: Elysia) =>
     app.derive(async ({ path, headers, query }) => {
         const res: Identity = {
-            schema: 'unknown',
+            schema: null,
             key: null,
             user: null
         }

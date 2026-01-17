@@ -23,7 +23,7 @@ export async function startServer() {
         .get('/', () => {
             return 'mino.'
         })
-        .all('/x/*', async ({ request, ip, identity, status }) => {
+        .all('/x/*', async ({ request, ip, country, identity, status }) => {
             if (!['GET', 'POST'].includes(request.method)) return status(403)
 
             const pathname = new URL(request.url).pathname
@@ -34,15 +34,32 @@ export async function startServer() {
             if (!match) return status(404)
 
             const provider = Mino.Memory.Providers[match.provider]
-
             if (!provider) return status(404)
-            if (identity.schema === 'unknown') return status(400)
 
-            if (!provider.require_auth) {
-                identity.key = ip as string
-            } else {
-                if (!identity.key) return status(401)
+            // MARK: schema selection
+            if (!identity.schema && provider.schema?.[0]) {
+                identity.schema = provider.schema[0].id as requestSchema.SchemaType
             }
+
+            if (!identity.schema) return status(400)
+
+            // MARK: auth-key check
+            if (provider.require_auth) {
+                if (!identity.user) return status(403)
+
+                if (identity.user.tier !== 'ADMIN') {
+                    const allowedProviders = await Mino.Database.getUserAllowedProviders(identity.user.id)
+                    if (!allowedProviders.find((p) => p.providerId === provider.id)) {
+                        return status(403)
+                    }
+                }
+            } else {
+                if (identity.user?.tier !== 'ADMIN') {
+                    identity.key = `${country}:${ip}`
+                }
+            }
+
+            if (!identity.key) return status(400)
 
             const schemaMap = provider.schema.find((s) => s.id === identity.schema)
             if (!schemaMap) return status(400)
@@ -78,6 +95,7 @@ export async function startServer() {
                         body: bodyBuffer
                     })
 
+                    // MARK: response check
                     if (!response.ok) {
                         let invalidateKey = false
 
@@ -85,6 +103,7 @@ export async function startServer() {
                             if (providerKey) {
                                 Mino.Memory.allocatedKey.incrUsed(identity.key, provider.keys_id)
                             }
+
                             return new Response(response.body, {
                                 status: response.status,
                                 statusText: response.statusText,
@@ -114,6 +133,7 @@ export async function startServer() {
                         continue
                     }
 
+                    // MARK: response success
                     const respHeaders = new Headers(response.headers)
                     schema.cleanupResponseHeaders(respHeaders)
 
