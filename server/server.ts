@@ -5,6 +5,7 @@ import { html } from '@elysiajs/html'
 
 import { ip } from './plugins/cloudflare'
 import { identity } from './plugins/identity'
+import { matchProvider } from './utils/route'
 
 import * as requestSchema from './schema'
 import type { SchemaRequestType } from './schema'
@@ -28,20 +29,11 @@ export async function startServer() {
             const pathname = new URL(request.url).pathname
             if (!pathname.startsWith('/x/')) return status(404)
 
-            const slicepath = pathname.slice(3)
-            const slashIndex = slicepath.indexOf('/')
+            const slicepath = decodeURIComponent(pathname.slice(3))
+            const match = matchProvider(slicepath, Object.keys(Mino.Memory.Providers))
+            if (!match) return status(404)
 
-            const path = {
-                provider: decodeURIComponent(slashIndex === -1 ? slicepath : slicepath.slice(0, slashIndex)),
-                endpoint: slashIndex === -1 ? '/' : slicepath.slice(slashIndex)
-            }
-
-            if (!path.provider) {
-                return status(404)
-            }
-
-            const provider = Mino.Memory.Providers[path.provider]
-
+            const provider = Mino.Memory.Providers[match.provider]
             if (!provider) return status(404)
             if (identity.schema === 'unknown') return status(400)
 
@@ -77,7 +69,7 @@ export async function startServer() {
                     schema.setProviderKey(providerKey.key)
 
                     const endpointType = providerKey.metadata?.endpoint || 'default'
-                    const endpoint = provider.endpoint[endpointType] + schemaMap.upstream_path + path.endpoint
+                    const endpoint = provider.endpoint[endpointType] + schemaMap.upstream_path + match.endpoint
 
                     const response = await fetch(endpoint, {
                         method: schema.request.method,
