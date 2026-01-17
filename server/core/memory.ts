@@ -94,4 +94,16 @@ export class MinoMemory {
             if (used > 0) this.Client.set(id, used - 1)
         }
     }
+
+    identityCooldown = {
+        get: (identity: string, type: string = 'default') => {
+            const id = `icd|${identity}|${type}`
+            const used = this.Client.get<number>(id)
+            return used || 0
+        },
+        set: (identity: string, value: number, type: string = 'default') => {
+            const id = `icd|${identity}|${type}`
+            this.Client.set(id, value)
+        }
+    }
 }

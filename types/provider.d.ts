@@ -21,6 +21,7 @@ export interface Provider {
     override: Override;
     filter_models: any[];
     scripts: Scripts;
+    cooldown: Cooldown;
 }
 
 export interface Concurrency {
@@ -71,4 +72,9 @@ export interface Schema {
 export interface Scripts {
     checker: string;
     preflight: null;
+}
+
+export interface Cooldown {
+    default: string;
+    [key: string]: string;
 }

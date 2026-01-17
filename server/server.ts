@@ -13,7 +13,9 @@ import type { SchemaRequestType } from './schema'
 import type { KeyData } from './core/database'
 
 import { Index } from './views'
+
 import { proxyResponseStream } from './utils/stream'
+import { parseDuration, msToHuman } from '@/utils/time'
 
 export async function startServer() {
     const serverPort = Number(Bun.env.PORT || (Mino.isProduction ? 30180 : 30181))
@@ -70,14 +72,29 @@ export async function startServer() {
             const schemaMap = provider.schema.find((s) => s.id === identity.schema)
             if (!schemaMap) return status(400)
 
-            // todo: cooldown
-
             let schema: SchemaRequestType | undefined
             let providerKey: KeyData
             let requestToken: number
 
             try {
                 schema = new requestSchema.default[identity.schema](request.clone())
+
+                if (identity.user?.tier !== 'ADMIN') {
+                    const isChat = schema.isChatCompletionEndpoint()
+                    const providerCooldown = isChat ? provider.cooldown.chat_completion! : provider.cooldown.default
+                    const cooldownType = isChat ? 'chat_completion' : 'default'
+
+                    const cooldownDuration = parseDuration(providerCooldown)
+
+                    const nextAllowedAt = Mino.Memory.identityCooldown.get(identity.key, cooldownType)
+                    const now = Date.now()
+
+                    if (nextAllowedAt > now) {
+                        return status(429, schema.errorObject(`Please wait ${msToHuman(nextAllowedAt - now)} before sending another request`, 'invalid_request_error', 'cooldown'))
+                    }
+
+                    Mino.Memory.identityCooldown.set(identity.key, now + cooldownDuration, cooldownType)
+                }
 
                 // todo: validation, preflight
 
@@ -177,7 +194,7 @@ export async function startServer() {
                     })
                 }
 
-                return status(500, schema.errorObject('All given allocated keys are unavailable, try again?', 'api_error'))
+                return status(500, schema.errorObject('Your allocated keys are currently unavailable. Try again?', 'api_error'))
             } catch (err) {
                 console.error(err)
                 return status(500)

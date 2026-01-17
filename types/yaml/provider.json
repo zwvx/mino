@@ -63,6 +63,9 @@
                 },
                 "scripts": {
                     "$ref": "#/definitions/Scripts"
+                },
+                "cooldown": {
+                    "$ref": "#/definitions/Cooldown"
                 }
             },
             "required": [
@@ -78,7 +81,8 @@
                 "pricing",
                 "require_auth",
                 "schema",
-                "scripts"
+                "scripts",
+                "cooldown"
             ],
             "title": "Provider"
         },
@@ -271,6 +275,21 @@
                 "preflight"
             ],
             "title": "Scripts"
+        },
+        "Cooldown": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string"
+            },
+            "properties": {
+                "default": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "default"
+            ],
+            "title": "Cooldown"
         }
     }
 }
