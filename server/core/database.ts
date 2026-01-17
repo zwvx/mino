@@ -19,6 +19,9 @@ export class MinoDatabase {
 
     async init() {
         migrate(this.db, { migrationsFolder: 'data/db/migrations' })
+
+        await this.initializeProvider()
+
         console.log('database connection initialized')
     }
 
@@ -66,5 +69,29 @@ export class MinoDatabase {
 
         console.log(`allocated key for <${identity}> to <${keyData.key.slice(0, 12)}...>`)
         return keyData
+    }
+
+    async setProviderKeyState(providerKey: string, state: 'active' | 'ratelimited' | 'error' | 'disabled') {
+        await this.db.update(schema.providerKeys)
+            .set({ state })
+            .where(eq(schema.providerKeys.key, providerKey))
+
+        console.log(`provider key <${providerKey.slice(0, 12)}...> state changed to <${state}>`)
+    }
+
+    async initializeProvider() {
+        for (const pid in Mino.Memory.Providers) {
+            const provider = Mino.Memory.Providers[pid]
+            if (!provider || !provider.id) {
+                console.error(`provider <${pid}> has no id`)
+                continue
+            }
+
+            this.db.insert(schema.providers).values({
+                id: provider.id
+            }).onConflictDoNothing().run()
+        }
+
+        console.log(`provider initialized into database`)
     }
 }

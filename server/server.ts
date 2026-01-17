@@ -23,6 +23,8 @@ export async function startServer() {
             return 'mino.'
         })
         .all('/x/*', async ({ request, ip, identity, status }) => {
+            if (!['GET', 'POST', 'OPTIONS'].includes(request.method)) return status(403)
+
             const pathname = new URL(request.url).pathname
             if (!pathname.startsWith('/x/')) return status(404)
 
@@ -43,15 +45,16 @@ export async function startServer() {
             if (!provider) return status(404)
             if (identity.schema === 'unknown') return status(400)
 
-            if (!identity.key) {
-                if (provider.require_auth) return status(401)
+            if (!provider.require_auth) {
                 identity.key = ip as string
+            } else {
+                if (!identity.key) return status(401)
             }
 
             const schemaMap = provider.schema.find((s) => s.id === identity.schema)
             if (!schemaMap) return status(400)
 
-            // todo: identity, request schema, concurrency
+            // todo: concurrency, limit
 
             let schema: SchemaRequestType
             let providerKey: KeyData
@@ -59,38 +62,83 @@ export async function startServer() {
             try {
                 schema = new requestSchema.default[identity.schema](request.clone())
 
-                providerKey = await Mino.Database.allocateProviderKey(identity.key, provider.keys_id)
-                schema.setProviderKey(providerKey.key)
-
-                const endpointType = providerKey.metadata?.endpoint || 'default'
-                const endpoint = provider.endpoint[endpointType] + schemaMap.upstream_path + path.endpoint
-
                 // todo: transform headers, token count, validation
 
                 schema.stripHeaders()
                 schema.overrideHeaders(provider.override.headers)
 
-                const response = await fetch(endpoint, {
-                    method: schema.request.method,
-                    headers: schema.request.headers,
-                    body: schema.request.body
-                })
+                const bodyBuffer = schema.request.body ? await schema.request.arrayBuffer() : null
 
-                const respHeaders = new Headers(response.headers)
-                schema.cleanupResponseHeaders(respHeaders)
+                let retryCount = 0
+                const maxRetryCount = 10
 
-                return new Response(response.body, {
-                    status: response.status,
-                    statusText: response.statusText,
-                    headers: respHeaders
-                })
+                while (retryCount < maxRetryCount) {
+                    providerKey = await Mino.Database.allocateProviderKey(identity.key, provider.keys_id)
+                    schema.setProviderKey(providerKey.key)
+
+                    const endpointType = providerKey.metadata?.endpoint || 'default'
+                    const endpoint = provider.endpoint[endpointType] + schemaMap.upstream_path + path.endpoint
+
+                    const response = await fetch(endpoint, {
+                        method: schema.request.method,
+                        headers: schema.request.headers,
+                        body: bodyBuffer
+                    })
+
+                    if (!response.ok) {
+                        let invalidateKey = false
+
+                        if (response.status === 400) {
+                            if (providerKey) {
+                                Mino.Memory.allocatedKey.incrUsed(identity.key, provider.keys_id)
+                            }
+                            return new Response(response.body, {
+                                status: response.status,
+                                statusText: response.statusText,
+                                headers: response.headers
+                            })
+                        }
+
+                        if (response.status === 401) {
+                            Mino.Database.setProviderKeyState(providerKey.key, 'disabled')
+                            invalidateKey = true
+                        }
+
+                        if ([402, 429].includes(response.status)) {
+                            Mino.Database.setProviderKeyState(providerKey.key, 'ratelimited')
+                            invalidateKey = true
+                        }
+
+                        if (invalidateKey) {
+                            Mino.Memory.allocatedKey.invalidate(identity.key, provider.keys_id)
+                        } else {
+                            if (providerKey) {
+                                Mino.Memory.allocatedKey.incrUsed(identity.key, provider.keys_id)
+                            }
+                        }
+
+                        retryCount++
+                        continue
+                    }
+
+                    const respHeaders = new Headers(response.headers)
+                    schema.cleanupResponseHeaders(respHeaders)
+
+                    if (providerKey) {
+                        Mino.Memory.allocatedKey.incrUsed(identity.key, provider.keys_id)
+                    }
+
+                    return new Response(response.body, {
+                        status: response.status,
+                        statusText: response.statusText,
+                        headers: respHeaders
+                    })
+                }
+
+                return status(500, schema.errorObject('All given allocated keys are unavailable, try again?', 'api_error'))
             } catch (err) {
                 console.error(err)
                 return status(500)
-            } finally {
-                if (providerKey) {
-                    Mino.Memory.allocatedKey.incrUsed(identity.key, provider.keys_id)
-                }
             }
         })
         .listen(serverPort, () => {

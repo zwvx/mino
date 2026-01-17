@@ -26,4 +26,12 @@ export class SchemaRequest {
             headers.delete(header)
         }
     }
+
+    errorObject(message: string, type: string, code: string | null = null, param: string | null = null) {
+        return {
+            error: {
+                message, type, code, param
+            }
+        }
+    }
 }

@@ -65,6 +65,13 @@ export class MinoMemory {
             if (!used) return this.Client.set(id, 1)
 
             this.Client.set(id, used + 1)
+        },
+        invalidate: (identity: string, provider: string) => {
+            const id = `ak|${identity}|${provider}`
+            const usedId = `ak_used|${identity}|${provider}`
+
+            this.Client.delete(id)
+            this.Client.delete(usedId)
         }
     }
 }
