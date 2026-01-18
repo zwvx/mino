@@ -1,5 +1,6 @@
 import { MinoMemory } from './core/memory'
 import { MinoDatabase } from './core/database'
+import { MinoServices } from './core/services'
 
 import { startServer } from './server'
 import { extendConsoleLog } from '@/utils/logging'
@@ -9,12 +10,15 @@ export class Mino {
 
     Memory = new MinoMemory()
     Database = new MinoDatabase()
+    Services = new MinoServices()
 
     async init() {
         console.log(`server production mode:`, this.isProduction)
 
         await this.Memory.init()
         await this.Database.init()
+
+        await this.Memory.loadProviderModels()
 
         this.overrideRejections()
     }

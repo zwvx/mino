@@ -115,6 +115,12 @@ export async function startServer() {
                     cooldownType = 'chat_completion'
                 }
 
+                if (schema.isModelListEndpoint()) {
+                    const models = Mino.Memory.getProviderModels(provider.id)
+                    if (!models) return status(503)
+                    return status(200, schema.getObjectModels(models))
+                }
+
                 if (identity.user?.tier !== 'ADMIN') {
                     const nextAllowedAt = Mino.Memory.getCooldown(identityKey, cooldownType)
                     const now = Date.now()

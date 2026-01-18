@@ -10,6 +10,10 @@ export class OpenAIRequest extends SchemaRequest {
         return this.request.url.endsWith('/chat/completions')
     }
 
+    override isModelListEndpoint(): boolean {
+        return this.request.url.endsWith('/models')
+    }
+
     override getRequestToken(bodyBuffer: ArrayBuffer) {
         try {
             const decoder = new TextDecoder()
@@ -75,6 +79,15 @@ export class OpenAIRequest extends SchemaRequest {
                 content: '',
                 tokenCount: 0
             }
+        }
+    }
+
+    override getObjectModel(modelId: string): Record<string, any> {
+        return {
+            id: modelId,
+            object: 'model',
+            created: Date.now(),
+            owned_by: 'mino'
         }
     }
 }

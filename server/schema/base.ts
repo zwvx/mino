@@ -40,6 +40,10 @@ export class SchemaRequest {
         return false
     }
 
+    isModelListEndpoint() {
+        return false
+    }
+
     getRequestToken(bodyBuffer: ArrayBuffer) {
         return 0
     }
@@ -48,6 +52,17 @@ export class SchemaRequest {
         return {
             content: '',
             tokenCount: 0
+        }
+    }
+
+    getObjectModel(modelId: string): Record<string, any> {
+        return {}
+    }
+
+    getObjectModels(modelIds: string[]): Record<string, any> {
+        return {
+            data: modelIds.map((m) => this.getObjectModel(m)),
+            object: 'list'
         }
     }
 }

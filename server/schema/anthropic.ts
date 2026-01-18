@@ -12,6 +12,10 @@ export class AnthropicRequest extends SchemaRequest {
         return this.request.url.endsWith('/v1/messages')
     }
 
+    override isModelListEndpoint(): boolean {
+        return this.request.url.endsWith('/models')
+    }
+
     override getRequestToken(bodyBuffer: ArrayBuffer) {
         try {
             const decoder = new TextDecoder()
@@ -77,6 +81,24 @@ export class AnthropicRequest extends SchemaRequest {
                 content: '',
                 tokenCount: 0
             }
+        }
+    }
+
+    override getObjectModel(modelId: string): Record<string, any> {
+        return {
+            id: modelId,
+            created_at: new Date().toISOString(),
+            display_name: modelId,
+            type: 'model'
+        }
+    }
+
+    override getObjectModels(modelIds: string[]) {
+        return {
+            data: modelIds.map((m) => this.getObjectModel(m)),
+            first_id: modelIds[0],
+            last_id: modelIds[modelIds.length - 1],
+            has_more: false
         }
     }
 }

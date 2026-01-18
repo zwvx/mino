@@ -17,6 +17,7 @@ export class MinoMemory {
     Sessions = new Map<string, IdentitySession>()
     KeyConcurrency = new Map<string, { providerKeysId: string; count: number }>()
     Providers: Record<string, Provider> = {}
+    ProviderModels = new Map<string, string[]>()
 
     private cleanupInterval: Timer | null = null
 
@@ -26,6 +27,35 @@ export class MinoMemory {
         this.cleanupInterval = setInterval(() => this.cleanupStaleSessions(), 60_000)
 
         console.log('memory successfully loaded')
+    }
+
+    async loadProviderModels() {
+        for (const [providerId, provider] of Object.entries(this.Providers)) {
+            if (!provider.enable) continue
+
+            try {
+                const keyData = await Mino.Database.getRandomProviderKey(provider.keys_id, [])
+                if (!keyData) {
+                    console.warn(`no key available for ${providerId}, skipping model cache`)
+                    continue
+                }
+
+                const models = await Mino.Services.fetchProviderModels(provider, keyData.key)
+                this.setProviderModels(providerId, models)
+
+                console.log(`cached ${models.length} models for ${providerId}`)
+            } catch (err) {
+                console.error(`failed to cache models for ${providerId}:`, err)
+            }
+        }
+    }
+
+    getProviderModels(providerId: string): string[] | undefined {
+        return this.ProviderModels.get(providerId)
+    }
+
+    setProviderModels(providerId: string, models: string[]): void {
+        this.ProviderModels.set(providerId, models)
     }
 
     async loadProvider(name?: string) {
