@@ -122,7 +122,10 @@
         },
         "Endpoint": {
             "type": "object",
-            "additionalProperties": false,
+            "additionalProperties": {
+                "type": "string",
+                "format": "uri"
+            },
             "properties": {
                 "default": {
                     "type": "string",
@@ -245,6 +248,10 @@
             "properties": {
                 "id": {
                     "type": "string"
+                },
+                "base": {
+                    "type": "string",
+                    "format": "uri"
                 },
                 "upstream_path": {
                     "type": "string"

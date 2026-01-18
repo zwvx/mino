@@ -66,6 +66,7 @@ export interface Put {
 
 export interface Schema {
     id: string;
+    base?: string;
     upstream_path: string;
 }
 

@@ -3,10 +3,11 @@ import { OpenAI } from 'openai'
 if (import.meta.main) {
     const url = Bun.argv[2]!
     const model = Bun.argv[3]!
+    const key = Bun.argv[4]!
 
     const openai = new OpenAI({
         baseURL: url,
-        apiKey: 'sk-test'
+        apiKey: key
     })
 
     console.log(`models:`, (await openai.models.list()).data)

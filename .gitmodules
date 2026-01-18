@@ -1,3 +1,6 @@
 [submodule "modules/checker"]
 	path = modules/checker
 	url = git@github.com:zwvx/mino-checker.git
+[submodule "modules/scripts"]
+	path = modules/scripts
+	url = git@github.com:zwvx/mino-scripts.git

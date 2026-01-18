@@ -45,10 +45,21 @@ export async function runImport() {
 
                     if (!key) continue
 
+                    let endpoint: string | undefined
+                    for (const part of parts.slice(1)) {
+                        const match = part.match(/^endpoint:\s*(.+)$/i)
+                        if (match?.[1]) {
+                            endpoint = match[1].trim()
+                            break
+                        }
+                    }
+
                     try {
+                        const metadata = endpoint ? { endpoint } : {}
                         const result = db.insert(providerKeys).values({
                             providerKeyId: options.provider,
-                            key: key
+                            key: key,
+                            metadata: metadata
                         }).onConflictDoNothing().run()
 
                         if ((result as any).changes > 0) {

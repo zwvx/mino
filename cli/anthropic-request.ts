@@ -3,13 +3,14 @@ import Anthropic from "@anthropic-ai/sdk"
 if (import.meta.main) {
     const url = Bun.argv[2]!
     const model = Bun.argv[3]!
+    const key = Bun.argv[4]!
 
     const anthropic = new Anthropic({
         baseURL: url,
-        apiKey: 'sk-test'
+        apiKey: key
     })
 
-    // console.log(`models:`, (await anthropic.models.list()).data)
+    console.log(`models:`, (await anthropic.models.list()).data)
 
     await anthropic.messages.stream({
         model: model,
