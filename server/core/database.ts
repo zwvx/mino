@@ -1,6 +1,6 @@
 import { Database } from 'bun:sqlite'
 
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, sql, notInArray } from 'drizzle-orm'
 import { drizzle, BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
 import { migrate } from 'drizzle-orm/bun-sqlite/migrator'
 
@@ -26,13 +26,19 @@ export class MinoDatabase {
         console.log('database connection initialized')
     }
 
-    async getRandomProviderKey(providerKeyId: string) {
+    async getRandomProviderKey(providerKeyId: string, excludeKeyIds?: string[]) {
+        const conditions = [
+            eq(schema.providerKeys.providerKeyId, providerKeyId),
+            eq(schema.providerKeys.state, 'active')
+        ]
+
+        if (excludeKeyIds?.length) {
+            conditions.push(notInArray(schema.providerKeys.key, excludeKeyIds))
+        }
+
         return this.db.select()
             .from(schema.providerKeys)
-            .where(and(
-                eq(schema.providerKeys.providerKeyId, providerKeyId),
-                eq(schema.providerKeys.state, 'active')
-            ))
+            .where(and(...conditions))
             .orderBy(sql`RANDOM()`)
             .limit(1).get()
     }

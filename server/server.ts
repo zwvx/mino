@@ -82,12 +82,18 @@ export async function startServer() {
             let cooldownType: string = 'default'
 
             let concurrencyIncremented = false
+            let allocatedKeyId: string | null = null
             let shouldDeferCleanup = false
             let skipCooldownUpdate = false
 
             const cleanup = () => {
                 if (concurrencyIncremented) {
                     Mino.Memory.decrActiveRequests(identityKey)
+                }
+
+                if (allocatedKeyId) {
+                    Mino.Memory.decrKeyConcurrency(allocatedKeyId)
+                    allocatedKeyId = null
                 }
 
                 if (!skipCooldownUpdate) {
@@ -144,6 +150,7 @@ export async function startServer() {
 
                 while (retryCount < maxRetryCount) {
                     providerKey = await Mino.Memory.allocateKey(identityKey, provider)
+                    allocatedKeyId = providerKey.key
                     schema.setProviderKey(providerKey.key)
 
                     const endpointType = providerKey.metadata?.endpoint || 'default'
@@ -183,6 +190,8 @@ export async function startServer() {
 
                         if (invalidateKey) {
                             Mino.Memory.invalidateKey(identityKey, provider.keys_id)
+                            Mino.Memory.decrKeyConcurrency(providerKey.key)
+                            allocatedKeyId = null
                         } else {
                             Mino.Memory.incrKeyUsage(identityKey, provider.keys_id)
                         }

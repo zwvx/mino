@@ -1,4 +1,4 @@
-import type { KeyData, NonNullableKeyData } from './database'
+import type { NonNullableKeyData } from './database'
 import type { ProviderConfig, Provider } from '@/types/provider'
 
 interface AllocatedKey {
@@ -15,6 +15,7 @@ interface IdentitySession {
 
 export class MinoMemory {
     Sessions = new Map<string, IdentitySession>()
+    KeyConcurrency = new Map<string, { providerKeysId: string; count: number }>()
     Providers: Record<string, Provider> = {}
 
     private cleanupInterval: Timer | null = null
@@ -134,9 +135,45 @@ export class MinoMemory {
         this.getSession(identity)?.allocatedKeys.delete(providerKeysId)
     }
 
+    getKeyConcurrency(keyId: string): number {
+        return this.KeyConcurrency.get(keyId)?.count || 0
+    }
+
+    incrKeyConcurrency(keyId: string, providerKeysId: string): number {
+        const existing = this.KeyConcurrency.get(keyId)
+        if (existing) {
+            existing.count++
+            return existing.count
+        }
+        this.KeyConcurrency.set(keyId, { providerKeysId, count: 1 })
+        return 1
+    }
+
+    decrKeyConcurrency(keyId: string): number {
+        const existing = this.KeyConcurrency.get(keyId)
+        if (!existing) return 0
+        if (existing.count <= 1) {
+            this.KeyConcurrency.delete(keyId)
+            return 0
+        }
+        existing.count--
+        return existing.count
+    }
+
+    getSaturatedKeyIds(providerKeysId: string, maxConcurrency: number): string[] {
+        const saturated: string[] = []
+        for (const [keyId, data] of this.KeyConcurrency) {
+            if (data.providerKeysId === providerKeysId && data.count >= maxConcurrency) {
+                saturated.push(keyId)
+            }
+        }
+        return saturated
+    }
+
     async allocateKey(identity: string, provider: Provider): Promise<NonNullableKeyData> {
         const providerKeysId = provider.keys_id
         const maxUsage = provider.concurrency.keys.max_usage_same_key
+        const sameKeyConcurrency = provider.concurrency.keys.same_key
 
         if (maxUsage > 1) {
             const existing = this.getAllocatedKey(identity, providerKeysId)
@@ -146,12 +183,14 @@ export class MinoMemory {
             }
         }
 
-        const keyData = await Mino.Database.getRandomProviderKey(providerKeysId)
+        const saturatedKeys = this.getSaturatedKeyIds(providerKeysId, sameKeyConcurrency)
+        const keyData = await Mino.Database.getRandomProviderKey(providerKeysId, saturatedKeys)
         if (!keyData) {
             throw new Error(`no key available for <${provider.id}>`)
         }
 
         this.setAllocatedKey(identity, providerKeysId, keyData)
+        this.incrKeyConcurrency(keyData.key, providerKeysId)
 
         if (maxUsage > 1) {
             console.log(`allocated key for <${identity}> to <${keyData.key.slice(0, 12)}...>`)
