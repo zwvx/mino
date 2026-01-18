@@ -17,7 +17,6 @@
     "@elysiajs/cors": "^1.4.1",
     "@elysiajs/html": "^1.4.0",
     "cac": "^6.7.14",
-    "cacheable": "^2.3.1",
     "date-fns": "^4.1.0",
     "drizzle-orm": "^0.45.1",
     "elysia": "^1.4.21",
