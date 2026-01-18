@@ -1,5 +1,6 @@
 export class SchemaRequest {
     request: Request
+    additionalStripHeaders: string[] = []
 
     constructor(request: Request) {
         this.request = request
@@ -8,7 +9,7 @@ export class SchemaRequest {
     setProviderKey(key: string) { }
 
     stripHeaders() {
-        const headers = ['host', 'content-length', 'connection', 'accept-encoding']
+        const headers = ['host', 'content-length', 'connection', 'accept-encoding', ...this.additionalStripHeaders]
         for (const header of headers) {
             this.request.headers.delete(header)
         }

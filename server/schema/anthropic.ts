@@ -2,6 +2,8 @@ import { SchemaRequest } from './base'
 import { estimateTokenCount } from 'tokenx'
 
 export class AnthropicRequest extends SchemaRequest {
+    override additionalStripHeaders = ['authorization']
+
     override setProviderKey(key: string) {
         this.request.headers.set('x-api-key', key)
     }

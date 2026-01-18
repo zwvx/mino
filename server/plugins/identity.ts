@@ -20,10 +20,9 @@ export const identity = (app: Elysia) =>
             res.key = headers['authorization'].replace('Bearer ', '').trim() || null
         }
 
-        // vague check
-        if (headers['x-api-key']) {
+        if (headers['x-api-key'] || (headers['authorization'] && Object.keys(headers).find((k) => k.includes('anthropic')))) {
             res.schema = 'anthropic'
-            res.key = headers['x-api-key']
+            res.key = headers['x-api-key'] || headers['authorization']?.replace('Bearer ', '').trim() || null
         }
 
         if (headers['x-goog-api-key'] || (path.includes('/v1beta') && query['key'])) {
