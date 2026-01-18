@@ -7,6 +7,7 @@ import { migrate } from 'drizzle-orm/bun-sqlite/migrator'
 import * as schema from '@/data/db/schema'
 
 export type KeyData = Awaited<ReturnType<typeof Mino.Database.getRandomProviderKey>>
+export type NonNullableKeyData = NonNullable<KeyData>
 
 export class MinoDatabase {
     public db: BunSQLiteDatabase<typeof schema>
@@ -34,38 +35,6 @@ export class MinoDatabase {
             ))
             .orderBy(sql`RANDOM()`)
             .limit(1).get()
-    }
-
-    async allocateProviderKey(identity: string, providerId: string) {
-        const provider = Mino.Memory.Providers[providerId]
-        if (!provider) {
-            throw new Error(`provider <${providerId}> not found`)
-        }
-
-        if (provider.concurrency.keys.max_usage_same_key > 1) {
-            const key = Mino.Memory.allocatedKey.get(identity, provider.keys_id)
-            if (key && key.key && key.used) {
-                const maxUsage = provider.concurrency.keys.max_usage_same_key
-                if (key.used < maxUsage) {
-                    console.log(`re-using allocated key for <${identity}> to <${key.key.key.slice(0, 12)}...> (${key.used + 1}/${maxUsage})`)
-                    return key.key
-                }
-            }
-        }
-
-        const keyData = await this.getRandomProviderKey(provider.keys_id)
-
-        if (!keyData) {
-            throw new Error(`no key available for <${providerId}>`)
-        }
-
-        Mino.Memory.allocatedKey.updateKey(identity, provider.keys_id, keyData)
-
-        if (provider.concurrency.keys.max_usage_same_key > 1) {
-            console.log(`allocated key for <${identity}> to <${keyData.key.slice(0, 12)}...>`)
-        }
-
-        return keyData
     }
 
     async setProviderKeyState(providerKey: string, state: 'active' | 'ratelimited' | 'error' | 'disabled') {

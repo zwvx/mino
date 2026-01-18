@@ -10,7 +10,7 @@ import { matchProvider } from './utils/route'
 import * as requestSchema from './schema'
 import type { SchemaRequestType } from './schema'
 
-import type { KeyData } from './core/database'
+import type { NonNullableKeyData } from './core/database'
 
 import { Index } from './views'
 
@@ -65,8 +65,8 @@ export async function startServer() {
             if (!identity.key) return status(400)
             const identityKey = identity.key
 
-            const idCon = Mino.Memory.identityConcurrency.get(identityKey)
-            if (idCon >= provider.concurrency.identity && identity.user?.tier !== 'ADMIN') {
+            const activeRequests = Mino.Memory.getActiveRequests(identityKey)
+            if (activeRequests >= provider.concurrency.identity && identity.user?.tier !== 'ADMIN') {
                 return status(429)
             }
 
@@ -74,7 +74,7 @@ export async function startServer() {
             if (!schemaMap) return status(400)
 
             let schema: SchemaRequestType | undefined
-            let providerKey: KeyData
+            let providerKey: NonNullableKeyData
             let requestToken: number = 0
             let isChatCompletion: boolean = false
 
@@ -87,13 +87,13 @@ export async function startServer() {
 
             const cleanup = () => {
                 if (concurrencyIncremented) {
-                    Mino.Memory.identityConcurrency.decr(identityKey)
+                    Mino.Memory.decrActiveRequests(identityKey)
                 }
 
                 if (!skipCooldownUpdate) {
                     try {
                         const cooldownDuration = parseDuration(providerCooldown || '0s')
-                        Mino.Memory.identityCooldown.set(identityKey, Date.now() + cooldownDuration, cooldownType)
+                        Mino.Memory.setCooldown(identityKey, cooldownType, Date.now() + cooldownDuration)
                     } catch (e) {
                         console.error('Failed to parse cooldown', e)
                     }
@@ -110,7 +110,7 @@ export async function startServer() {
                 }
 
                 if (identity.user?.tier !== 'ADMIN') {
-                    const nextAllowedAt = Mino.Memory.identityCooldown.get(identityKey, cooldownType)
+                    const nextAllowedAt = Mino.Memory.getCooldown(identityKey, cooldownType)
                     const now = Date.now()
 
                     if (nextAllowedAt > now) {
@@ -130,12 +130,12 @@ export async function startServer() {
                     requestToken = schema.getRequestToken(bodyBuffer)
 
                     if (identity.user?.tier !== 'ADMIN') {
-                        if ((requestToken > provider.limit.payload.input)) {
+                        if (requestToken > provider.limit.payload.input) {
                             return status(400, schema.errorObject(`Token limit exceeded. Maximum ${provider.limit.payload.input} tokens.`, 'invalid_request_error', 'token_limit_exceeded'))
                         }
                     }
 
-                    Mino.Memory.identityConcurrency.incr(identityKey)
+                    Mino.Memory.incrActiveRequests(identityKey)
                     concurrencyIncremented = true
                 }
 
@@ -143,7 +143,7 @@ export async function startServer() {
                 const maxRetryCount = 10
 
                 while (retryCount < maxRetryCount) {
-                    providerKey = await Mino.Database.allocateProviderKey(identityKey, provider.id)
+                    providerKey = await Mino.Memory.allocateKey(identityKey, provider)
                     schema.setProviderKey(providerKey.key)
 
                     const endpointType = providerKey.metadata?.endpoint || 'default'
@@ -161,7 +161,7 @@ export async function startServer() {
                         const isRetryable = [401, 402, 429].includes(statusCode) || statusCode >= 500
 
                         if (!isRetryable) {
-                            Mino.Memory.allocatedKey.incrUsed(identityKey, provider.keys_id)
+                            Mino.Memory.incrKeyUsage(identityKey, provider.keys_id)
 
                             shouldDeferCleanup = true
                             return proxyResponseStream(new Response(response.body, {
@@ -182,9 +182,9 @@ export async function startServer() {
                         }
 
                         if (invalidateKey) {
-                            Mino.Memory.allocatedKey.invalidate(identityKey, provider.keys_id)
+                            Mino.Memory.invalidateKey(identityKey, provider.keys_id)
                         } else {
-                            Mino.Memory.allocatedKey.incrUsed(identityKey, provider.keys_id)
+                            Mino.Memory.incrKeyUsage(identityKey, provider.keys_id)
                         }
 
                         retryCount++
@@ -194,7 +194,7 @@ export async function startServer() {
                     const respHeaders = new Headers(response.headers)
                     schema.cleanupResponseHeaders(respHeaders)
 
-                    Mino.Memory.allocatedKey.incrUsed(identityKey, provider.keys_id)
+                    Mino.Memory.incrKeyUsage(identityKey, provider.keys_id)
 
                     shouldDeferCleanup = true
                     return proxyResponseStream(new Response(response.body, {

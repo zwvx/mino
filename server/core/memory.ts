@@ -1,14 +1,29 @@
-import { CacheableMemory } from 'cacheable'
-
-import type { KeyData } from './database'
+import type { KeyData, NonNullableKeyData } from './database'
 import type { ProviderConfig, Provider } from '@/types/provider'
 
+interface AllocatedKey {
+    key: NonNullableKeyData
+    usageCount: number
+}
+
+interface IdentitySession {
+    activeRequests: number
+    cooldowns: Map<string, number>
+    allocatedKeys: Map<string, AllocatedKey>
+    lastActivity: number
+}
+
 export class MinoMemory {
-    Client = new CacheableMemory({ ttl: '10m' })
+    Sessions = new Map<string, IdentitySession>()
     Providers: Record<string, Provider> = {}
+
+    private cleanupInterval: Timer | null = null
 
     async init() {
         await this.loadProvider()
+
+        this.cleanupInterval = setInterval(() => this.cleanupStaleSessions(), 60_000)
+
         console.log('memory successfully loaded')
     }
 
@@ -44,66 +59,104 @@ export class MinoMemory {
         return provider
     }
 
-    allocatedKey = {
-        get: (identity: string, provider: string) => {
-            const keyId = `ak|${identity}|${provider}`
-            const usedId = `ak_used|${identity}|${provider}`
+    private cleanupStaleSessions() {
+        const now = Date.now()
+        const staleThreshold = 10 * 60 * 1000
 
-            const key = this.Client.get<KeyData>(keyId)
-            const used = this.Client.get<number>(usedId)
-
-            return { key, used }
-        },
-        updateKey: (identity: string, provider: string, key: KeyData) => {
-            const id = `ak|${identity}|${provider}`
-            this.Client.set(id, key)
-        },
-        incrUsed: (identity: string, provider: string) => {
-            const id = `ak_used|${identity}|${provider}`
-
-            const used = this.Client.get<number>(id)
-            if (!used) return this.Client.set(id, 1)
-
-            this.Client.set(id, used + 1)
-        },
-        invalidate: (identity: string, provider: string) => {
-            const id = `ak|${identity}|${provider}`
-            const usedId = `ak_used|${identity}|${provider}`
-
-            this.Client.delete(id)
-            this.Client.delete(usedId)
+        for (const [identity, session] of this.Sessions) {
+            if (now - session.lastActivity > staleThreshold && session.activeRequests === 0) {
+                this.Sessions.delete(identity)
+            }
         }
     }
 
-    identityConcurrency = {
-        get: (identity: string) => {
-            const id = `ic|${identity}`
-            const used = this.Client.get<number>(id)
-            return used || 0
-        },
-        incr: (identity: string) => {
-            const id = `ic|${identity}`
-            const used = this.Client.get<number>(id)
-            if (!used) return this.Client.set(id, 1)
-            this.Client.set(id, used + 1)
-        },
-        decr: (identity: string) => {
-            const id = `ic|${identity}`
-            const used = this.Client.get<number>(id)
-            if (used === undefined) return this.Client.set(id, 0)
-            if (used > 0) this.Client.set(id, used - 1)
-        }
+    getSession(identity: string): IdentitySession | undefined {
+        return this.Sessions.get(identity)
     }
 
-    identityCooldown = {
-        get: (identity: string, type: string = 'default') => {
-            const id = `icd|${identity}|${type}`
-            const used = this.Client.get<number>(id)
-            return used || 0
-        },
-        set: (identity: string, value: number, type: string = 'default') => {
-            const id = `icd|${identity}|${type}`
-            this.Client.set(id, value)
+    getOrCreateSession(identity: string): IdentitySession {
+        let session = this.Sessions.get(identity)
+        if (!session) {
+            session = {
+                activeRequests: 0,
+                cooldowns: new Map(),
+                allocatedKeys: new Map(),
+                lastActivity: Date.now()
+            }
+            this.Sessions.set(identity, session)
         }
+        session.lastActivity = Date.now()
+        return session
+    }
+
+    getActiveRequests(identity: string): number {
+        return this.getSession(identity)?.activeRequests || 0
+    }
+
+    incrActiveRequests(identity: string): number {
+        const session = this.getOrCreateSession(identity)
+        session.activeRequests++
+        return session.activeRequests
+    }
+
+    decrActiveRequests(identity: string): number {
+        const session = this.getSession(identity)
+        if (!session) return 0
+        if (session.activeRequests > 0) session.activeRequests--
+        return session.activeRequests
+    }
+
+    getCooldown(identity: string, type: string = 'default'): number {
+        return this.getSession(identity)?.cooldowns.get(type) || 0
+    }
+
+    setCooldown(identity: string, type: string, expiresAt: number): void {
+        this.getOrCreateSession(identity).cooldowns.set(type, expiresAt)
+    }
+
+    getAllocatedKey(identity: string, providerKeysId: string): AllocatedKey | undefined {
+        return this.getSession(identity)?.allocatedKeys.get(providerKeysId)
+    }
+
+    setAllocatedKey(identity: string, providerKeysId: string, key: NonNullableKeyData): void {
+        this.getOrCreateSession(identity).allocatedKeys.set(providerKeysId, {
+            key,
+            usageCount: 0
+        })
+    }
+
+    incrKeyUsage(identity: string, providerKeysId: string): void {
+        const allocated = this.getAllocatedKey(identity, providerKeysId)
+        if (allocated) allocated.usageCount++
+    }
+
+    invalidateKey(identity: string, providerKeysId: string): void {
+        this.getSession(identity)?.allocatedKeys.delete(providerKeysId)
+    }
+
+    async allocateKey(identity: string, provider: Provider): Promise<NonNullableKeyData> {
+        const providerKeysId = provider.keys_id
+        const maxUsage = provider.concurrency.keys.max_usage_same_key
+
+        if (maxUsage > 1) {
+            const existing = this.getAllocatedKey(identity, providerKeysId)
+            if (existing?.key && existing.usageCount < maxUsage) {
+                console.log(`re-using allocated key for <${identity}> to <${existing.key.key.slice(0, 12)}...> (${existing.usageCount + 1}/${maxUsage})`)
+                return existing.key
+            }
+        }
+
+        const keyData = await Mino.Database.getRandomProviderKey(providerKeysId)
+        if (!keyData) {
+            throw new Error(`no key available for <${provider.id}>`)
+        }
+
+        this.setAllocatedKey(identity, providerKeysId, keyData)
+
+        if (maxUsage > 1) {
+            console.log(`allocated key for <${identity}> to <${keyData.key.slice(0, 12)}...>`)
+        }
+
+        return keyData
     }
 }
