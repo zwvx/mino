@@ -63,37 +63,60 @@ export async function startServer() {
             }
 
             if (!identity.key) return status(400)
+            const identityKey = identity.key
 
-            const idCon = Mino.Memory.identityConcurrency.get(identity.key)
+            const idCon = Mino.Memory.identityConcurrency.get(identityKey)
             if (idCon >= provider.concurrency.identity && identity.user?.tier !== 'ADMIN') {
                 return status(429)
             }
 
-            const schemaMap = provider.schema.find((s) => s.id === identity.schema)
+            const schemaMap = provider.schema?.find((s) => s.id === identity.schema)
             if (!schemaMap) return status(400)
 
             let schema: SchemaRequestType | undefined
             let providerKey: KeyData
-            let requestToken: number
+            let requestToken: number = 0
+            let isChatCompletion: boolean = false
+
+            let providerCooldown: string = provider.cooldown.default
+            let cooldownType: string = 'default'
+
+            let concurrencyIncremented = false
+            let shouldDeferCleanup = false
+            let skipCooldownUpdate = false
+
+            const cleanup = () => {
+                if (concurrencyIncremented) {
+                    Mino.Memory.identityConcurrency.decr(identityKey)
+                }
+
+                if (!skipCooldownUpdate) {
+                    try {
+                        const cooldownDuration = parseDuration(providerCooldown || '0s')
+                        Mino.Memory.identityCooldown.set(identityKey, Date.now() + cooldownDuration, cooldownType)
+                    } catch (e) {
+                        console.error('Failed to parse cooldown', e)
+                    }
+                }
+            }
 
             try {
                 schema = new requestSchema.default[identity.schema](request.clone())
 
+                isChatCompletion = schema.isChatCompletionEndpoint()
+                if (isChatCompletion) {
+                    providerCooldown = provider.cooldown.chat_completion || provider.cooldown.default
+                    cooldownType = 'chat_completion'
+                }
+
                 if (identity.user?.tier !== 'ADMIN') {
-                    const isChat = schema.isChatCompletionEndpoint()
-                    const providerCooldown = isChat ? provider.cooldown.chat_completion! : provider.cooldown.default
-                    const cooldownType = isChat ? 'chat_completion' : 'default'
-
-                    const cooldownDuration = parseDuration(providerCooldown)
-
-                    const nextAllowedAt = Mino.Memory.identityCooldown.get(identity.key, cooldownType)
+                    const nextAllowedAt = Mino.Memory.identityCooldown.get(identityKey, cooldownType)
                     const now = Date.now()
 
                     if (nextAllowedAt > now) {
-                        return status(429, schema.errorObject(`Please wait ${msToHuman(nextAllowedAt - now)} before sending another request`, 'invalid_request_error', 'cooldown'))
+                        skipCooldownUpdate = true
+                        return status(429, schema.errorObject(`Please wait ${msToHuman(nextAllowedAt - now)} before sending another ${isChatCompletion ? 'chat completion' : 'request'}`, 'invalid_request_error', 'cooldown'))
                     }
-
-                    Mino.Memory.identityCooldown.set(identity.key, now + cooldownDuration, cooldownType)
                 }
 
                 // todo: validation, preflight
@@ -103,10 +126,7 @@ export async function startServer() {
 
                 const bodyBuffer = schema.request.body ? await schema.request.arrayBuffer() : null
 
-                let retryCount = 0
-                const maxRetryCount = 10
-
-                if (schema.isChatCompletionEndpoint() && bodyBuffer) {
+                if (isChatCompletion && bodyBuffer) {
                     requestToken = schema.getRequestToken(bodyBuffer)
 
                     if (identity.user?.tier !== 'ADMIN') {
@@ -115,11 +135,15 @@ export async function startServer() {
                         }
                     }
 
-                    Mino.Memory.identityConcurrency.incr(identity.key)
+                    Mino.Memory.identityConcurrency.incr(identityKey)
+                    concurrencyIncremented = true
                 }
 
+                let retryCount = 0
+                const maxRetryCount = 10
+
                 while (retryCount < maxRetryCount) {
-                    providerKey = await Mino.Database.allocateProviderKey(identity.key, provider.keys_id)
+                    providerKey = await Mino.Database.allocateProviderKey(identityKey, provider.id)
                     schema.setProviderKey(providerKey.key)
 
                     const endpointType = providerKey.metadata?.endpoint || 'default'
@@ -133,37 +157,34 @@ export async function startServer() {
 
                     if (!response.ok) {
                         let invalidateKey = false
+                        const statusCode = response.status
+                        const isRetryable = [401, 402, 429].includes(statusCode) || statusCode >= 500
 
-                        if (response.status === 400) {
-                            if (providerKey) {
-                                Mino.Memory.allocatedKey.incrUsed(identity.key, provider.keys_id)
-                            }
+                        if (!isRetryable) {
+                            Mino.Memory.allocatedKey.incrUsed(identityKey, provider.keys_id)
 
+                            shouldDeferCleanup = true
                             return proxyResponseStream(new Response(response.body, {
                                 status: response.status,
                                 statusText: response.statusText,
                                 headers: response.headers
-                            }), (responseBody) => {
-                                console.log('stream finished (error 400)', responseBody)
-                            })
+                            }), cleanup)
                         }
 
-                        if (response.status === 401) {
-                            Mino.Database.setProviderKeyState(providerKey.key, 'disabled')
+                        if (statusCode === 401) {
+                            await Mino.Database.setProviderKeyState(providerKey.key, 'disabled')
                             invalidateKey = true
                         }
 
-                        if ([402, 429].includes(response.status)) {
-                            Mino.Database.setProviderKeyState(providerKey.key, 'ratelimited')
+                        if ([402, 429].includes(statusCode)) {
+                            await Mino.Database.setProviderKeyState(providerKey.key, 'ratelimited')
                             invalidateKey = true
                         }
 
                         if (invalidateKey) {
-                            Mino.Memory.allocatedKey.invalidate(identity.key, provider.keys_id)
+                            Mino.Memory.allocatedKey.invalidate(identityKey, provider.keys_id)
                         } else {
-                            if (providerKey) {
-                                Mino.Memory.allocatedKey.incrUsed(identity.key, provider.keys_id)
-                            }
+                            Mino.Memory.allocatedKey.incrUsed(identityKey, provider.keys_id)
                         }
 
                         retryCount++
@@ -173,10 +194,9 @@ export async function startServer() {
                     const respHeaders = new Headers(response.headers)
                     schema.cleanupResponseHeaders(respHeaders)
 
-                    if (providerKey) {
-                        Mino.Memory.allocatedKey.incrUsed(identity.key, provider.keys_id)
-                    }
+                    Mino.Memory.allocatedKey.incrUsed(identityKey, provider.keys_id)
 
+                    shouldDeferCleanup = true
                     return proxyResponseStream(new Response(response.body, {
                         status: response.status,
                         statusText: response.statusText,
@@ -191,16 +211,18 @@ export async function startServer() {
                         }
 
                         await Mino.Database.incrProviderRequest(provider.id)
+                        cleanup()
                     })
                 }
 
                 return status(500, schema.errorObject('Your allocated keys are currently unavailable. Try again?', 'api_error'))
             } catch (err) {
                 console.error(err)
+                shouldDeferCleanup = false
                 return status(500)
             } finally {
-                if (schema?.isChatCompletionEndpoint()) {
-                    Mino.Memory.identityConcurrency.decr(identity.key)
+                if (!shouldDeferCleanup) {
+                    cleanup()
                 }
             }
         })

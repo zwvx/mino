@@ -29,26 +29,31 @@ export function parseDuration(timeStr: string): number {
 }
 
 export function msToHuman(ms: number): string {
+    if (ms < 0) ms = 0
+
+    const pluralize = (value: number, unit: string) =>
+        `${value} ${unit}${value === 1 ? '' : 's'}`
+
     if (ms < 1000) return `${ms}ms`
 
     const seconds = ms / 1000
     if (seconds < 60) {
-        if (Number.isInteger(seconds)) return `${seconds} seconds`
-        return `${seconds.toFixed(1)} seconds`
+        const rounded = Number.isInteger(seconds) ? seconds : parseFloat(seconds.toFixed(1))
+        return pluralize(rounded, 'second')
     }
 
     const minutes = Math.floor(seconds / 60)
-    if (minutes < 60) return `${minutes} minutes`
+    if (minutes < 60) return pluralize(minutes, 'minute')
 
     const hours = Math.floor(minutes / 60)
-    if (hours < 24) return `${hours} hours`
+    if (hours < 24) return pluralize(hours, 'hour')
 
     const days = Math.floor(hours / 24)
-    if (days < 30) return `${days} days`
+    if (days < 30) return pluralize(days, 'day')
 
     const months = Math.floor(days / 30)
-    if (months < 12) return `${months} months`
+    if (months < 12) return pluralize(months, 'month')
 
     const years = Math.floor(months / 12)
-    return `${years} years`
+    return pluralize(years, 'year')
 }

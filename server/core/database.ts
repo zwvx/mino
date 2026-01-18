@@ -25,10 +25,6 @@ export class MinoDatabase {
         console.log('database connection initialized')
     }
 
-    async getUserToken(token: string) {
-        return this.db.select().from(schema.users).where(eq(schema.users.token, token)).get()
-    }
-
     async getRandomProviderKey(providerKeyId: string) {
         return this.db.select()
             .from(schema.providerKeys)
@@ -40,32 +36,30 @@ export class MinoDatabase {
             .limit(1).get()
     }
 
-    async allocateProviderKey(identity: string, providerKeyId: string) {
-        const provider = Mino.Memory.Providers[providerKeyId]
+    async allocateProviderKey(identity: string, providerId: string) {
+        const provider = Mino.Memory.Providers[providerId]
         if (!provider) {
-            throw new Error(`provider <${providerKeyId}> not found`)
+            throw new Error(`provider <${providerId}> not found`)
         }
 
         if (provider.concurrency.keys.max_usage_same_key > 1) {
-            const key = Mino.Memory.allocatedKey.get(identity, providerKeyId)
+            const key = Mino.Memory.allocatedKey.get(identity, provider.keys_id)
             if (key && key.key && key.used) {
                 const maxUsage = provider.concurrency.keys.max_usage_same_key
                 if (key.used < maxUsage) {
-                    // Mino.Memory.allocatedKey.incrUsed(identity, providerKeyId)
                     console.log(`re-using allocated key for <${identity}> to <${key.key.key.slice(0, 12)}...> (${key.used + 1}/${maxUsage})`)
                     return key.key
                 }
             }
         }
 
-        const keyData = await this.getRandomProviderKey(providerKeyId)
+        const keyData = await this.getRandomProviderKey(provider.keys_id)
 
         if (!keyData) {
-            throw new Error(`no key available for <${providerKeyId}>`)
+            throw new Error(`no key available for <${providerId}>`)
         }
 
-        Mino.Memory.allocatedKey.updateKey(identity, keyData.providerKeyId, keyData)
-        // Mino.Memory.allocatedKey.incrUsed(identity, keyData.providerKeyId)
+        Mino.Memory.allocatedKey.updateKey(identity, provider.keys_id, keyData)
 
         if (provider.concurrency.keys.max_usage_same_key > 1) {
             console.log(`allocated key for <${identity}> to <${keyData.key.slice(0, 12)}...>`)

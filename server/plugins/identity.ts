@@ -4,7 +4,7 @@ import type { SchemaType } from '../schema'
 type Identity = {
     schema: SchemaType | null
     key: string | null
-    user: Awaited<ReturnType<typeof Mino.Database.getUserToken>> | null
+    user: Awaited<ReturnType<typeof Mino.Database.getUserFromToken>> | null
 }
 
 export const identity = (app: Elysia) =>
@@ -32,7 +32,7 @@ export const identity = (app: Elysia) =>
         }
 
         if (res.key) {
-            const userToken = await Mino.Database.getUserToken(res.key)
+            const userToken = await Mino.Database.getUserFromToken(res.key)
             if (userToken) {
                 res.user = userToken
             }
