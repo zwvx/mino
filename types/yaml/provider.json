@@ -227,10 +227,10 @@
             "additionalProperties": false,
             "properties": {
                 "value": {
-                    "type": "integer"
+                    "type": "number"
                 },
                 "token_scale": {
-                    "type": "integer"
+                    "type": "number"
                 }
             },
             "required": [
