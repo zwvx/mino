@@ -9,7 +9,25 @@ export class SchemaRequest {
     setProviderKey(key: string) { }
 
     stripHeaders() {
-        const headers = ['host', 'content-length', 'connection', 'accept-encoding', ...this.additionalStripHeaders]
+        const headers = [
+            'host',
+            'content-length',
+            'connection',
+            'accept-encoding',
+            'x-forwarded-for',
+            'x-forwarded-proto',
+            'x-forwarded-host',
+            'x-forwarded-port',
+            'x-real-ip',
+            'x-request-id',
+            'cf-conncting-ip',
+            'cf-ray',
+            'cf-visitor',
+            'cf-ipcountry',
+            'cdn-loop',
+            ...this.additionalStripHeaders
+        ]
+
         for (const header of headers) {
             this.request.headers.delete(header)
         }
