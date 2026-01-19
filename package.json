@@ -16,11 +16,13 @@
   "dependencies": {
     "@elysiajs/cors": "^1.4.1",
     "@elysiajs/html": "^1.4.0",
+    "bun-plugin-tailwind": "^0.1.2",
     "cac": "^6.7.14",
     "date-fns": "^4.1.0",
     "drizzle-orm": "^0.45.1",
     "elysia": "^1.4.21",
     "ipaddr.js": "^2.3.0",
+    "tailwindcss": "^4.1.18",
     "tokenx": "^1.2.1"
   },
   "scripts": {

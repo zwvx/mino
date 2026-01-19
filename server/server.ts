@@ -25,8 +25,8 @@ export async function startServer() {
         .onBeforeHandle(({ ip, country, status }) => {
             if (!ip || !country) return status(403)
         })
-        .get('/', () => {
-            return Index()
+        .get('/', async () => {
+            return await Index()
         })
         .all('/x/*', async ({ request, ip, country, identity, status }) => {
             if (!['GET', 'POST'].includes(request.method)) return status(403)
@@ -228,7 +228,7 @@ export async function startServer() {
                         statusText: response.statusText,
                         headers: respHeaders
                     }), async (res) => {
-                        if (schema && schema.isChatCompletionEndpoint()) {
+                        if (schema && isChatCompletion) {
                             // todo: log the chat?
                             const { content, tokenCount } = schema.parseSSEChatResponse(res)
 
