@@ -1,4 +1,5 @@
 import { Elysia } from 'elysia'
+import { performance as perf } from 'perf_hooks'
 
 import { cors } from '@elysiajs/cors'
 import { html } from '@elysiajs/html'
@@ -30,6 +31,8 @@ export async function startServer() {
             return await Index()
         })
         .all('/x/*', async ({ request, ip, country, identity, status }) => {
+            const requestStart = perf.now()
+
             if (!['GET', 'POST'].includes(request.method)) return status(403)
 
             const pathname = new URL(request.url).pathname
@@ -92,6 +95,8 @@ export async function startServer() {
                 if (cleanupCalled) return
                 cleanupCalled = true
 
+                console.log(`[${identityKey}] [${identity.schema}] ${pathname} took ${(perf.now() - requestStart).toFixed(2)}ms`)
+
                 if (concurrencyIncremented) {
                     Mino.Memory.decrActiveRequests(identityKey)
                 }
@@ -148,7 +153,7 @@ export async function startServer() {
                     }
                 }
 
-                // todo: validation, preflight
+                // todo: preflight
 
                 schema.stripHeaders()
                 schema.overrideHeaders(provider.override.headers)
@@ -172,6 +177,8 @@ export async function startServer() {
 
                     Mino.Memory.incrActiveRequests(identityKey)
                     concurrencyIncremented = true
+
+                    console.log(`[${identityKey}] [${identity.schema}] [${provider.id}] chat completion request. input tokens: ${requestToken.toLocaleString()}`)
                 }
 
                 let retryCount = 0
