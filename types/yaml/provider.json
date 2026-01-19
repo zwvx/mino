@@ -275,6 +275,12 @@
                         "string",
                         "null"
                     ]
+                },
+                "response_validation": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
                 }
             },
             "required": [

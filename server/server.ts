@@ -14,8 +14,9 @@ import type { NonNullableKeyData } from './core/database'
 
 import { Index } from './views'
 
-import { proxyResponseStream } from './utils/stream'
+import { proxyResponseStream, interceptFirstChunk } from './utils/stream'
 import { parseDuration, msToHuman } from '@/utils/time'
+import type { ResponseValidator } from '@/modules/scripts/response_validation/types'
 
 export async function startServer() {
     const serverPort = Number(Bun.env.PORT || (Mino.isProduction ? 30180 : 30181))
@@ -108,6 +109,18 @@ export async function startServer() {
                         console.error('Failed to parse cooldown', e)
                     }
                 }
+            }
+
+            const handleResponseComplete = async (responseContent: string) => {
+                if (schema && isChatCompletion) {
+                    // todo: log the chat?
+                    const { content, tokenCount } = schema.parseSSEChatResponse(responseContent)
+
+                    const totalToken = requestToken + tokenCount
+                    await Mino.Database.incrProviderGeneratedToken(provider.id, totalToken)
+                }
+                await Mino.Database.incrProviderRequest(provider.id)
+                cleanup()
             }
 
             try {
@@ -220,6 +233,54 @@ export async function startServer() {
                     const respHeaders = new Headers(response.headers)
                     schema.cleanupResponseHeaders(respHeaders)
 
+                    if (provider.scripts?.response_validation) {
+                        let validator: ResponseValidator | null = null
+                        try {
+                            const mod = await import(`@/modules/scripts/response_validation/${provider.scripts.response_validation}`)
+                            validator = mod.default as ResponseValidator
+                        } catch { }
+
+                        if (validator) {
+                            const intercepted = await interceptFirstChunk(response)
+                            if (intercepted) {
+                                const validationResult = validator(intercepted.firstChunk)
+
+                                if (!validationResult.valid) {
+                                    if (validationResult.keyState === 'disabled') {
+                                        await Mino.Database.setProviderKeyState(providerKey.key, 'disabled')
+                                    } else if (validationResult.keyState === 'ratelimited') {
+                                        await Mino.Database.setProviderKeyState(providerKey.key, 'ratelimited')
+                                    }
+
+                                    if (validationResult.retryable) {
+                                        Mino.Memory.invalidateKey(identityKey, provider.keys_id)
+                                        Mino.Memory.decrKeyConcurrency(providerKey.key)
+                                        allocatedKeyId = null
+                                        retryCount++
+                                        continue
+                                    }
+
+                                    return status(
+                                        validationResult.statusCode || 500,
+                                        schema.errorObject(
+                                            validationResult.errorMessage || 'Provider error',
+                                            'api_error'
+                                        )
+                                    )
+                                }
+
+                                Mino.Memory.incrKeyUsage(identityKey, provider.keys_id)
+
+                                shouldDeferCleanup = true
+                                return proxyResponseStream(new Response(intercepted.createStream(), {
+                                    status: response.status,
+                                    statusText: response.statusText,
+                                    headers: respHeaders
+                                }), (res) => handleResponseComplete(intercepted.firstChunk + res))
+                            }
+                        }
+                    }
+
                     Mino.Memory.incrKeyUsage(identityKey, provider.keys_id)
 
                     shouldDeferCleanup = true
@@ -227,18 +288,7 @@ export async function startServer() {
                         status: response.status,
                         statusText: response.statusText,
                         headers: respHeaders
-                    }), async (res) => {
-                        if (schema && isChatCompletion) {
-                            // todo: log the chat?
-                            const { content, tokenCount } = schema.parseSSEChatResponse(res)
-
-                            const totalToken = requestToken + tokenCount
-                            await Mino.Database.incrProviderGeneratedToken(provider.id, totalToken)
-                        }
-
-                        await Mino.Database.incrProviderRequest(provider.id)
-                        cleanup()
-                    })
+                    }), handleResponseComplete)
                 }
 
                 return status(500, schema.errorObject('Your allocated keys are currently unavailable. Try again?', 'api_error'))

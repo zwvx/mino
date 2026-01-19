@@ -68,3 +68,57 @@ export function proxyResponseStream(
         headers: response.headers
     })
 }
+
+export interface InterceptedStream {
+    firstChunk: string
+    createStream: () => ReadableStream<Uint8Array>
+}
+
+export async function interceptFirstChunk(response: Response): Promise<InterceptedStream | null> {
+    if (!response.body) {
+        return null
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+
+    try {
+        const { done, value } = await reader.read()
+
+        if (done || !value) {
+            reader.releaseLock()
+            return null
+        }
+
+        const firstChunk = decoder.decode(value, { stream: true })
+
+        return {
+            firstChunk,
+            createStream: () => {
+                return new ReadableStream<Uint8Array>({
+                    start(controller) {
+                        controller.enqueue(value)
+                    },
+                    async pull(controller) {
+                        try {
+                            const { done, value } = await reader.read()
+                            if (done) {
+                                controller.close()
+                                return
+                            }
+                            controller.enqueue(value)
+                        } catch (err) {
+                            controller.error(err)
+                        }
+                    },
+                    cancel(reason) {
+                        reader.cancel(reason).catch(() => { })
+                    }
+                })
+            }
+        }
+    } catch {
+        reader.cancel().catch(() => { })
+        return null
+    }
+}

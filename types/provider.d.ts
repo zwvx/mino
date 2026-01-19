@@ -72,7 +72,8 @@ export interface Schema {
 
 export interface Scripts {
     checker: string;
-    preflight: null;
+    preflight: string | null;
+    response_validation?: string | null;
 }
 
 export interface Cooldown {
