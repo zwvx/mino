@@ -1,6 +1,8 @@
 import type { NonNullableKeyData } from './database'
 import type { ProviderConfig, Provider } from '@/types/provider'
 
+import * as ipdaddr from 'ipaddr.js'
+
 interface AllocatedKey {
     key: NonNullableKeyData
     usageCount: number
@@ -13,11 +15,15 @@ interface IdentitySession {
     lastActivity: number
 }
 
+type BlockedCIDR = Array<[ipdaddr.IPv4 | ipdaddr.IPv6, number]>
+
 export class MinoMemory {
     Sessions = new Map<string, IdentitySession>()
     KeyConcurrency = new Map<string, { providerKeysId: string; count: number }>()
     Providers: Record<string, Provider> = {}
     ProviderModels = new Map<string, string[]>()
+
+    BlockedCIDR: BlockedCIDR = []
 
     private cleanupInterval: Timer | null = null
 
@@ -30,22 +36,36 @@ export class MinoMemory {
     }
 
     async loadProviderModels() {
+        const MAX_RETRIES = 3
+
         for (const [providerId, provider] of Object.entries(this.Providers)) {
             if (!provider.enable) continue
 
-            try {
-                const keyData = await Mino.Database.getRandomProviderKey(provider.keys_id, [])
+            const failedKeys: string[] = []
+            let success = false
+
+            for (let attempt = 0; attempt < MAX_RETRIES && !success; attempt++) {
+                const keyData = await Mino.Database.getRandomProviderKey(provider.keys_id, failedKeys)
                 if (!keyData) {
                     console.warn(`no key available for ${providerId}, skipping model cache`)
-                    continue
+                    break
                 }
 
-                const models = await Mino.Services.fetchProviderModels(provider, keyData.key)
-                this.setProviderModels(providerId, models)
+                try {
+                    const models = await Mino.Services.fetchProviderModels(provider, keyData.key)
+                    this.setProviderModels(providerId, models)
 
-                console.log(`cached ${models.length} models for ${providerId}`)
-            } catch (err) {
-                console.error(`failed to cache models for ${providerId}:`, err)
+                    console.log(`cached ${models.length} models for ${providerId}`)
+                    success = true
+                } catch (err) {
+                    failedKeys.push(keyData.key)
+
+                    if (attempt < MAX_RETRIES - 1) {
+                        console.warn(`attempt ${attempt + 1}/${MAX_RETRIES} failed for ${providerId}, retrying with another key...`)
+                    } else {
+                        console.error(`failed to cache models for ${providerId} after ${MAX_RETRIES} attempts:`, err)
+                    }
+                }
             }
         }
     }
@@ -88,6 +108,50 @@ export class MinoMemory {
         const raw = await Bun.file(path).text()
         const { provider } = Bun.YAML.parse(raw) as ProviderConfig
         return provider
+    }
+
+    async loadBlockedCIDR() {
+        const files = await Array.fromAsync(new Bun.Glob('data/blocked_cidr/*.txt').scan())
+        if (!files.length) return
+
+        for await (const file of files) {
+            const cidr = await Bun.file(file).text()
+
+            const ranges = cidr.split('\n')
+                .map((l) => l.trim())
+                .filter((l) => l && !l.startsWith('#'))
+
+            let count = 0
+            for await (const range of ranges) {
+                const parsed = ipdaddr.parseCIDR(range)
+                if (!parsed) {
+                    throw new Error(`failed to parse cidr: ${range}`)
+                }
+
+                this.BlockedCIDR.push(parsed)
+                count++
+            }
+
+            console.log(`loaded blocked cidr ${file}: ${count}`)
+        }
+    }
+
+    async isSubnetBlocked(ip: string) {
+        try {
+            const parsed = ipdaddr.parse(ip)
+            if (!parsed) {
+                throw new Error(`failed to parse ip: ${ip}`)
+            }
+
+            const matched = ipdaddr.subnetMatch(parsed, { blocked: this.BlockedCIDR }, 'allowed')
+            if (matched && matched === 'blocked') {
+                return true
+            }
+
+            return false
+        } catch (err) {
+            throw new Error(`failed to check if subnet is blocked: ${err}`)
+        }
     }
 
     private cleanupStaleSessions() {

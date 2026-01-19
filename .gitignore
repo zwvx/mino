@@ -36,6 +36,8 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 data/db/migrations/
 data/db/database.db*
 
+data/blocked_cidr/*.txt
+
 data/providers/*.yml
 data/config.yml
 

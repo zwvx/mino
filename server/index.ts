@@ -18,6 +18,7 @@ export class Mino {
         await this.Memory.init()
         await this.Database.init()
 
+        await this.Memory.loadBlockedCIDR()
         await this.Memory.loadProviderModels()
 
         this.overrideRejections()
