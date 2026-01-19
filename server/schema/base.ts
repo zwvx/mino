@@ -62,7 +62,7 @@ export class SchemaRequest {
         return false
     }
 
-    getRequestToken(bodyBuffer: ArrayBuffer) {
+    getRequestToken(bodyBuffer: ArrayBuffer): number | null {
         return 0
     }
 

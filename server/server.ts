@@ -85,8 +85,12 @@ export async function startServer() {
             let allocatedKeyId: string | null = null
             let shouldDeferCleanup = false
             let skipCooldownUpdate = false
+            let cleanupCalled = false
 
             const cleanup = () => {
+                if (cleanupCalled) return
+                cleanupCalled = true
+
                 if (concurrencyIncremented) {
                     Mino.Memory.decrActiveRequests(identityKey)
                 }
@@ -139,7 +143,13 @@ export async function startServer() {
                 const bodyBuffer = schema.request.body ? await schema.request.arrayBuffer() : null
 
                 if (isChatCompletion && bodyBuffer) {
-                    requestToken = schema.getRequestToken(bodyBuffer)
+                    const tokenResult = schema.getRequestToken(bodyBuffer)
+
+                    if (tokenResult === null) {
+                        return status(400, schema.errorObject('Invalid request body. Expected valid JSON with messages array.', 'invalid_request_error', 'invalid_body'))
+                    }
+
+                    requestToken = tokenResult
 
                     if (identity.user?.tier !== 'ADMIN') {
                         if (requestToken > provider.limit.payload.input) {

@@ -16,23 +16,25 @@ export class AnthropicRequest extends SchemaRequest {
         return this.request.url.endsWith('/models')
     }
 
-    override getRequestToken(bodyBuffer: ArrayBuffer) {
+    override getRequestToken(bodyBuffer: ArrayBuffer): number | null {
         try {
             const decoder = new TextDecoder()
             const body = decoder.decode(bodyBuffer)
             const json = JSON.parse(body)
 
+            if (!json.messages || !Array.isArray(json.messages)) {
+                return null
+            }
+
             let text = ''
-            if (json.messages && Array.isArray(json.messages)) {
-                for (const message of json.messages) {
-                    text += (message.role || '') + ' '
-                    if (typeof message.content === 'string') {
-                        text += message.content + ' '
-                    } else if (Array.isArray(message.content)) {
-                        for (const part of message.content) {
-                            if (part.type === 'text') {
-                                text += (part.text || '') + ' '
-                            }
+            for (const message of json.messages) {
+                text += (message.role || '') + ' '
+                if (typeof message.content === 'string') {
+                    text += message.content + ' '
+                } else if (Array.isArray(message.content)) {
+                    for (const part of message.content) {
+                        if (part.type === 'text') {
+                            text += (part.text || '') + ' '
                         }
                     }
                 }
@@ -40,7 +42,7 @@ export class AnthropicRequest extends SchemaRequest {
 
             return estimateTokenCount(text)
         } catch {
-            return 0
+            return null
         }
     }
 
