@@ -25,6 +25,8 @@ export class SchemaRequest {
             'cf-visitor',
             'cf-ipcountry',
             'cdn-loop',
+            'referer',
+            'origin',
             ...this.additionalStripHeaders
         ]
 
