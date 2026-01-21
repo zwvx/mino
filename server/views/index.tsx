@@ -14,14 +14,44 @@ export const Index = async () => {
         return
     }
 
+    const providers = Mino.Memory.Providers
+    const base = 'https://mino.redemption.pw'
+
     return (
         <html lang="en">
             <head>
                 <title>mino</title>
+                <meta charset="UTF-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
                 <style>{stylesText}</style>
             </head>
-            <body class="flex flex-col items-center justify-center h-screen">
-                <h3 class="text-2xl">wip</h3>
+            <body class="bg-[#111] text-[#c0c0c0] font-serif p-6 max-w-2xl text-md">
+                <h1 class="text-lg font-bold mb-4 tracking-tight">mino (wip)</h1>
+
+                <div class="space-y-1">
+                    {Object.entries(providers).map(([name, data]: [string, any]) => (
+                        <details class="group">
+                            <summary class="cursor-pointer hover:text-[#fff] select-none text-[#aaa] group-open:text-[#eee]">
+                                {name}
+                            </summary>
+
+                            <div class="pl-4 py-1 space-y-0.5 font-mono text-sm text-[#888] overflow-x-auto whitespace-nowrap">
+                                <div class="flex gap-4">
+                                    <span class="w-16 text-[#555] shrink-0">endpoint</span>
+                                    <span><a href={`${base}/x/${name}/`} target="_blank" rel="noopener noreferrer" class="text-[#6086d8]">{base}/x/{name}/</a></span>
+                                </div>
+                                {data.schema && data.schema.length > 0 && (
+                                    <div class="flex gap-4">
+                                        <span class="w-16 text-[#555] shrink-0">schemas</span>
+                                        <span class="text-[#d8b060]">
+                                            [{data.schema.map((s: any) => s.id).join(', ')}]
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                        </details>
+                    ))}
+                </div>
             </body>
         </html>
     )
