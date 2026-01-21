@@ -216,12 +216,16 @@ export async function startServer() {
                         }
 
                         if (statusCode === 401) {
-                            await Mino.Database.setProviderKeyState(providerKey.key, 'disabled')
+                            if (!provider.concurrency.keys.key_stay_active) {
+                                await Mino.Database.setProviderKeyState(providerKey.key, 'disabled')
+                            }
                             invalidateKey = true
                         }
 
                         if ([402, 429].includes(statusCode)) {
-                            await Mino.Database.setProviderKeyState(providerKey.key, 'ratelimited')
+                            if (!provider.concurrency.keys.key_stay_active) {
+                                await Mino.Database.setProviderKeyState(providerKey.key, 'ratelimited')
+                            }
                             invalidateKey = true
                         }
 
@@ -253,10 +257,12 @@ export async function startServer() {
                                 const validationResult = validator(intercepted.firstChunk)
 
                                 if (!validationResult.valid) {
-                                    if (validationResult.keyState === 'disabled') {
-                                        await Mino.Database.setProviderKeyState(providerKey.key, 'disabled')
-                                    } else if (validationResult.keyState === 'ratelimited') {
-                                        await Mino.Database.setProviderKeyState(providerKey.key, 'ratelimited')
+                                    if (!provider.concurrency.keys.key_stay_active) {
+                                        if (validationResult.keyState === 'disabled') {
+                                            await Mino.Database.setProviderKeyState(providerKey.key, 'disabled')
+                                        } else if (validationResult.keyState === 'ratelimited') {
+                                            await Mino.Database.setProviderKeyState(providerKey.key, 'ratelimited')
+                                        }
                                     }
 
                                     if (validationResult.retryable) {

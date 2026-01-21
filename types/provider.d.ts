@@ -32,6 +32,7 @@ export interface Concurrency {
 export interface Keys {
     same_key: number;
     max_usage_same_key: number;
+    key_stay_active?: boolean;
 }
 
 export interface Endpoint {
@@ -71,7 +72,7 @@ export interface Schema {
 }
 
 export interface Scripts {
-    checker: string;
+    checker: string | null;
     preflight: string | null;
     response_validation?: string | null;
 }

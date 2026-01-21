@@ -112,6 +112,9 @@
                 },
                 "max_usage_same_key": {
                     "type": "integer"
+                },
+                "key_stay_active": {
+                    "type": "boolean"
                 }
             },
             "required": [
@@ -268,7 +271,10 @@
             "additionalProperties": false,
             "properties": {
                 "checker": {
-                    "type": "string"
+                    "type": [
+                        "string",
+                        "null"
+                    ]
                 },
                 "preflight": {
                     "type": [

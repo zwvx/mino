@@ -4,5 +4,14 @@
             "data/providers/*.yml",
             "data/providers/*.yaml"
         ]
-    }
+    },
+    "sqltools.useNodeRuntime": true,
+    "sqltools.connections": [
+        {
+            "previewLimit": 50,
+            "driver": "SQLite",
+            "name": "mino",
+            "database": "${workspaceFolder:mino}/data/db/database.db"
+        }
+    ]
 }
