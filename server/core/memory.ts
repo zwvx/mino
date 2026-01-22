@@ -25,6 +25,16 @@ export class MinoMemory {
 
     BlockedCIDR: BlockedCIDR = []
 
+    Security = {
+        spikeMode: {
+            active: false,
+            activatedAt: 0,
+            expiresAt: 0
+        },
+        perIpTracking: new Map<string, number[]>(),
+        globalTracking: [] as number[]
+    }
+
     private cleanupInterval: Timer | null = null
 
     async init() {

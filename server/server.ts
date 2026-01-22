@@ -7,6 +7,7 @@ import { html } from '@elysiajs/html'
 import { ip } from './plugins/cloudflare'
 import { identity } from './plugins/identity'
 import { matchProvider } from './utils/route'
+import { checkRequestSpike } from './security/request-spike'
 
 import * as requestSchema from './schema'
 import type { SchemaRequestType } from './schema'
@@ -130,6 +131,10 @@ export async function startServer() {
 
             try {
                 schema = new requestSchema.default[identity.schema](request.clone())
+
+                if (checkRequestSpike(ip!)) {
+                    return status(429, schema.errorObject(`Mino is currently under high load. Visit "/verify/v1" to verify your IP.`, 'invalid_request_error', 'under_attack'))
+                }
 
                 isChatCompletion = schema.isChatCompletionEndpoint()
                 if (isChatCompletion) {
