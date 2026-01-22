@@ -1,18 +1,4 @@
-interface RequestSpikeConfig {
-    perIpWindowMs: number
-    perIpMaxRequests: number
-    globalWindowMs: number
-    globalMaxRequests: number
-    spikeModeDuration: number
-}
-
-const config: RequestSpikeConfig = {
-    perIpWindowMs: 10_000,
-    perIpMaxRequests: 30,
-    globalWindowMs: 5_000,
-    globalMaxRequests: 100,
-    spikeModeDuration: 30 * 60_000
-}
+const spikeConfig = () => Mino.Config.security.request_spike
 
 function pruneTimestamps(timestamps: number[], windowMs: number, now: number): number[] {
     const cutoff = now - windowMs
@@ -38,7 +24,7 @@ function activateSpikeMode(reason: string): void {
     Mino.Memory.Security.spikeMode = {
         active: true,
         activatedAt: now,
-        expiresAt: now + config.spikeModeDuration
+        expiresAt: now + spikeConfig().spike_mode_duration
     }
     console.warn(`spike mode activated: ${reason}`)
 }
@@ -49,23 +35,24 @@ export function checkRequestSpike(ip: string): boolean {
     }
 
     const now = Date.now()
+    const config = spikeConfig()
     const { perIpTracking, globalTracking } = Mino.Memory.Security
 
     let ipTimestamps = perIpTracking.get(ip) || []
-    ipTimestamps = pruneTimestamps(ipTimestamps, config.perIpWindowMs, now)
+    ipTimestamps = pruneTimestamps(ipTimestamps, config.per_ip_window_ms, now)
     ipTimestamps.push(now)
     perIpTracking.set(ip, ipTimestamps)
 
-    const prunedGlobal = pruneTimestamps(globalTracking, config.globalWindowMs, now)
+    const prunedGlobal = pruneTimestamps(globalTracking, config.global_window_ms, now)
     prunedGlobal.push(now)
     Mino.Memory.Security.globalTracking = prunedGlobal
 
-    if (ipTimestamps.length > config.perIpMaxRequests) {
+    if (ipTimestamps.length > config.per_ip_max_requests) {
         activateSpikeMode(`per-ip threshold exceeded by ${ip}`)
         return true
     }
 
-    if (prunedGlobal.length > config.globalMaxRequests) {
+    if (prunedGlobal.length > config.global_max_requests) {
         activateSpikeMode(`global threshold exceeded (${prunedGlobal.length} requests)`)
         return true
     }

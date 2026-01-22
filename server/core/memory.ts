@@ -40,13 +40,13 @@ export class MinoMemory {
     async init() {
         await this.loadProvider()
 
-        this.cleanupInterval = setInterval(() => this.cleanupStaleSessions(), 60_000)
+        this.cleanupInterval = setInterval(() => this.cleanupStaleSessions(), Mino.Config.memory.cleanup_interval_ms)
 
         console.log('memory successfully loaded')
     }
 
     async loadProviderModels() {
-        const MAX_RETRIES = 3
+        const MAX_RETRIES = Mino.Config.memory.max_model_fetch_retries
 
         for (const [providerId, provider] of Object.entries(this.Providers)) {
             if (!provider.enable) continue
@@ -166,7 +166,7 @@ export class MinoMemory {
 
     private cleanupStaleSessions() {
         const now = Date.now()
-        const staleThreshold = 10 * 60 * 1000
+        const staleThreshold = Mino.Config.memory.stale_session_threshold_ms
 
         for (const [identity, session] of this.Sessions) {
             if (now - session.lastActivity > staleThreshold && session.activeRequests === 0) {

@@ -21,12 +21,12 @@ import { parseDuration, msToHuman } from '@/utils/time'
 import type { ResponseValidator } from '@/modules/scripts/response_validation/types'
 
 export async function startServer() {
-    const serverPort = Number(Bun.env.PORT || (Mino.isProduction ? 30180 : 30181))
+    const serverPort = Number(Bun.env.PORT || Mino.isProduction ? Mino.Config.server.port : Mino.Config.server.port + 1)
 
     new Elysia()
         .use(ip).use(identity).use(cors()).use(html())
         .onBeforeHandle(({ ip, country, status }) => {
-            if (!ip || !country) return status(403)
+            if (!ip || !country) return status(403, 'Invalid IP or country code')
         })
         .get('/', async () => {
             return await Index()
@@ -34,7 +34,7 @@ export async function startServer() {
         .all('/x/*', async ({ request, ip, country, identity, status }) => {
             const requestStart = perf.now()
 
-            if (!['GET', 'POST'].includes(request.method)) return status(403)
+            if (!['GET', 'POST'].includes(request.method)) return status(403, 'Invalid request method')
 
             const pathname = new URL(request.url).pathname
             if (!pathname.startsWith('/x/')) return status(404)
@@ -53,12 +53,12 @@ export async function startServer() {
             if (!identity.schema) return status(400)
 
             if (provider.require_auth) {
-                if (!identity.user) return status(403)
+                if (!identity.user) return status(403, 'Invalid authentication')
 
                 if (identity.user.tier !== 'ADMIN') {
                     const allowedProviders = await Mino.Database.getUserAllowedProviders(identity.user.id)
                     if (!allowedProviders.find((p) => p.providerId === provider.id)) {
-                        return status(403)
+                        return status(403, 'User token is not allowed for this provider')
                     }
                 }
             } else {
@@ -187,7 +187,7 @@ export async function startServer() {
                 }
 
                 let retryCount = 0
-                const maxRetryCount = 10
+                const maxRetryCount = Mino.Config.server.max_retry_count
 
                 while (retryCount < maxRetryCount) {
                     providerKey = await Mino.Memory.allocateKey(identityKey, provider)

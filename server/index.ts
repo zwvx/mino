@@ -5,8 +5,11 @@ import { MinoServices } from './core/services'
 import { startServer } from './server'
 import { extendConsoleLog } from '@/utils/logging'
 
+import * as config from '@/data/config.yml'
+
 export class Mino {
     readonly isProduction = Bun.env.NODE_ENV === 'production'
+    readonly Config = config
 
     Memory = new MinoMemory()
     Database = new MinoDatabase()

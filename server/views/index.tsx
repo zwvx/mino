@@ -15,7 +15,7 @@ export const Index = async () => {
     }
 
     const providers = Mino.Memory.Providers
-    const base = 'https://mino.redemption.pw'
+    const base = Mino.Config.site.base_url
 
     return (
         <html lang="en">
