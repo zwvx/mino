@@ -1,16 +1,15 @@
 import { Html } from '@elysiajs/html'
-import tailwind from 'bun-plugin-tailwind'
 
 export const Index = async () => {
-    const styles = await Bun.build({
-        entrypoints: ['server/views/styles/global.css'],
-        plugins: [tailwind],
-        minify: true
-    })
-
-    const stylesText = await styles.outputs[0]?.text()
-    if (!stylesText) {
+    const styles = await Mino.buildStyles()
+    if (!styles) {
         console.error('failed to build styles')
+        return
+    }
+
+    const client = await Mino.buildClient()
+    if (!client) {
+        console.error('failed to build client script')
         return
     }
 
@@ -23,7 +22,7 @@ export const Index = async () => {
                 <title>mino</title>
                 <meta charset="UTF-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-                <style>{stylesText}</style>
+                <style>{styles}</style>
             </head>
             <body class="bg-[#111] text-[#c0c0c0] font-serif p-6 max-w-2xl text-md">
                 <h1 class="text-lg font-bold mb-4 tracking-tight">mino (wip)</h1>
@@ -52,6 +51,7 @@ export const Index = async () => {
                         </details>
                     ))}
                 </div>
+                <script>{client}</script>
             </body>
         </html>
     )

@@ -20,6 +20,10 @@ import { proxyResponseStream, interceptFirstChunk } from './utils/stream'
 import { parseDuration, msToHuman } from '@/utils/time'
 import type { ResponseValidator } from '@/modules/scripts/response_validation/types'
 
+function wsObject(type: string, data: Record<string, any>) {
+    return { type, data }
+}
+
 export async function startServer() {
     const serverPort = Number(Bun.env.PORT || Mino.isProduction ? Mino.Config.server.port : Mino.Config.server.port + 1)
 
@@ -318,6 +322,14 @@ export async function startServer() {
                 if (!shouldDeferCleanup) {
                     cleanup()
                 }
+            }
+        })
+        .ws('/mino', {
+            open(ws) {
+                ws.send(wsObject('init', { session: Mino.Session }))
+            },
+            message: async (ws, message) => {
+                console.log(ws, message)
             }
         })
         .listen(serverPort, () => {

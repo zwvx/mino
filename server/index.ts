@@ -1,3 +1,5 @@
+import tailwind from 'bun-plugin-tailwind'
+
 import { MinoMemory } from './core/memory'
 import { MinoDatabase } from './core/database'
 import { MinoServices } from './core/services'
@@ -8,6 +10,7 @@ import { extendConsoleLog } from '@/utils/logging'
 import * as config from '@/data/config.yml'
 
 export class Mino {
+    readonly Session = Math.random().toString(36).slice(2)
     readonly isProduction = Bun.env.NODE_ENV === 'production'
     readonly Config = config
 
@@ -30,6 +33,23 @@ export class Mino {
     private overrideRejections() {
         process.on('unhandledRejection', console.error)
         process.on('uncaughtException', console.error)
+    }
+
+    async buildStyles() {
+        return (await Bun.build({
+            entrypoints: ['server/views/styles/global.css'],
+            plugins: [tailwind],
+            minify: true
+        })).outputs[0]?.text()
+    }
+
+    async buildClient() {
+        return (await Bun.build({
+            entrypoints: ['server/client.ts'],
+            minify: true,
+            target: 'browser',
+            format: 'iife'
+        })).outputs[0]?.text()
     }
 }
 

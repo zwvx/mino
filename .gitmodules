@@ -4,3 +4,6 @@
 [submodule "modules/scripts"]
 	path = modules/scripts
 	url = git@github.com:zwvx/mino-scripts.git
+[submodule "modules/nsa"]
+	path = modules/nsa
+	url = git@github.com:zwvx/mino-nsa.git
