@@ -43,12 +43,20 @@ export class MinoDatabase {
             .limit(1).get()
     }
 
-    async setProviderKeyState(providerKey: string, state: 'active' | 'ratelimited' | 'error' | 'disabled') {
+    async setProviderKeyState(providerKey: string, state: 'active' | 'ratelimited' | 'error' | 'disabled', log = true) {
         await this.db.update(schema.providerKeys)
             .set({ state })
             .where(eq(schema.providerKeys.key, providerKey))
 
-        console.log(`provider key <${providerKey.slice(0, 12)}...> state changed to <${state}>`)
+        if (log) {
+            console.log(`provider key <${providerKey.slice(0, 12)}...> state changed to <${state}>`)
+        }
+    }
+
+    async setProviderKeyMetadata(providerKey: string, metadata: Record<string, any>) {
+        await this.db.update(schema.providerKeys)
+            .set({ metadata })
+            .where(eq(schema.providerKeys.key, providerKey))
     }
 
     async initializeProvider() {
@@ -87,5 +95,14 @@ export class MinoDatabase {
             .set({ totalRequest: sql`total_request + 1` })
             .where(eq(schema.providers.id, providerId))
             .run()
+    }
+
+    async getProviderKeysByState(providerKeyId: string, state: 'active' | 'ratelimited' | 'error' | 'disabled') {
+        return this.db.select()
+            .from(schema.providerKeys)
+            .where(and(
+                eq(schema.providerKeys.providerKeyId, providerKeyId),
+                eq(schema.providerKeys.state, state)
+            )).all()
     }
 }

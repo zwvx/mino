@@ -27,6 +27,8 @@ export class Mino {
         await this.Memory.loadBlockedCIDR()
         await this.Memory.loadProviderModels()
 
+        this.Memory.checkAllProviders()
+
         this.overrideRejections()
     }
 

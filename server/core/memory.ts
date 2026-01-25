@@ -302,4 +302,10 @@ export class MinoMemory {
 
         return keyData
     }
+
+    async checkAllProviders() {
+        for await (const provider of Object.values(this.Providers)) {
+            await Mino.Services.checkProviderKeys(provider)
+        }
+    }
 }
