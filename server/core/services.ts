@@ -84,7 +84,13 @@ export class MinoServices {
 
                 await Mino.Database.setProviderKeyState(key, result.result, false)
                 if (result.metadata) {
-                    await Mino.Database.setProviderKeyMetadata(key, result.metadata)
+                    const metadataObj: Record<string, any> = { ...result.metadata }
+
+                    if (keyData.metadata?.endpoint) {
+                        metadataObj.endpoint = keyData.metadata.endpoint
+                    }
+
+                    await Mino.Database.setProviderKeyMetadata(key, metadataObj)
                 }
 
                 switch (result.result) {
@@ -102,6 +108,12 @@ export class MinoServices {
                 }
             } catch (err) {
                 console.error(`failed to check provider key <${provider.id}> <${key.slice(0, 12)}...>:`, err)
+
+                // edge-cases, endpoint got wiped
+                if (err instanceof Error && err.message.includes('endpoint is required')) {
+                    await Mino.Database.deleteProviderKey(provider.keys_id, key)
+                    console.error(`provider <${provider.id}> key <${key.slice(0, 12)}...>: endpoint got accidentally wiped. deleted from database`)
+                }
             }
         }
 

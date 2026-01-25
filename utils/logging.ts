@@ -1,3 +1,6 @@
+const yellow = '\x1b[33m'
+const reset = '\x1b[0m'
+
 export function extendConsoleLog(title: string) {
     const log = console.log
     const warn = console.warn
@@ -8,7 +11,7 @@ export function extendConsoleLog(title: string) {
     }
 
     console.warn = (...args) => {
-        warn(`[${title}]`, ...args)
+        warn(`${yellow}[${title}]${reset}`, ...args)
     }
 
     console.error = (...args) => {

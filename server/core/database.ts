@@ -45,7 +45,10 @@ export class MinoDatabase {
 
     async setProviderKeyState(providerKey: string, state: 'active' | 'ratelimited' | 'error' | 'disabled', log = true) {
         await this.db.update(schema.providerKeys)
-            .set({ state })
+            .set({
+                state,
+                updatedAt: sql`CURRENT_TIMESTAMP`
+            })
             .where(eq(schema.providerKeys.key, providerKey))
 
         if (log) {
@@ -109,6 +112,15 @@ export class MinoDatabase {
     async pruneDisabledKeys() {
         await this.db.delete(schema.providerKeys)
             .where(eq(schema.providerKeys.state, 'disabled'))
+            .run()
+    }
+
+    async deleteProviderKey(providerKeyId: string, key: string) {
+        await this.db.delete(schema.providerKeys)
+            .where(and(
+                eq(schema.providerKeys.providerKeyId, providerKeyId),
+                eq(schema.providerKeys.key, key)
+            ))
             .run()
     }
 }
