@@ -101,6 +101,10 @@ export class MinoMemory {
                 })
             )
 
+            this.Providers = Object.fromEntries(
+                Object.entries(this.Providers).sort((a, b) => a[1].id.localeCompare(b[1].id))
+            )
+
             console.log(`provider loaded:`, loaded.join(', '))
         } else {
             const path = `data/providers/${name}.yml`

@@ -28,6 +28,7 @@ export class Mino {
         await this.Memory.loadProviderModels()
 
         this.Memory.checkAllProviders()
+        this.scheduler()
 
         this.overrideRejections()
     }
@@ -52,6 +53,12 @@ export class Mino {
             target: 'browser',
             format: 'iife'
         })).outputs[0]?.text()
+    }
+
+    private scheduler() {
+        setInterval(() => {
+            this.Memory.checkAllProviders()
+        }, 30 * 60 * 1000)
     }
 }
 
