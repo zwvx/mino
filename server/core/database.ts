@@ -56,7 +56,7 @@ export class MinoDatabase {
         }
     }
 
-    async setProviderKeyMetadata(providerKey: string, metadata: Record<string, any>) {
+    async setProviderKeyMetadata(providerKey: string, metadata: schema.ProviderKeyMetadata) {
         await this.db.update(schema.providerKeys)
             .set({ metadata })
             .where(eq(schema.providerKeys.key, providerKey))

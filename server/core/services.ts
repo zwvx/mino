@@ -2,6 +2,7 @@ import type { Provider } from '@/types/provider'
 import schemas, { type SchemaType } from '../schema'
 
 import type { ProviderChecker } from '@/modules/checker/abstract'
+import type { ProviderKeyMetadata } from '@/data/db/schema'
 
 export class MinoServices {
     async fetchProviderModels(provider: Provider, apiKey: string): Promise<string[]> {
@@ -64,9 +65,7 @@ export class MinoServices {
             return
         }
 
-        const hasEndpointType = providerKeys.some((key) => key.metadata?.endpoint)
-
-        console.log(`checking ${providerKeys.length} keys for provider <${provider.id}> (${hasEndpointType ? 'with endpoint' : 'without endpoint'})`)
+        console.log(`checking ${providerKeys.length} keys for provider <${provider.id}>`)
 
         for await (const keyData of providerKeys) {
             await Bun.sleep(instance.checkDelaySeconds * 1000)
@@ -74,9 +73,10 @@ export class MinoServices {
             const key = keyData.key
             let endpoint = null
 
-            if (hasEndpointType && keyData.metadata?.endpoint) {
-                const type = keyData.metadata.endpoint
-                endpoint = provider.endpoint[type] ?? provider.endpoint.default
+            if (keyData.metadata?.endpoint) {
+                endpoint = provider.endpoint[keyData.metadata.endpoint] ?? provider.endpoint.default
+            } else {
+                endpoint = provider.endpoint.default
             }
 
             try {
@@ -84,7 +84,7 @@ export class MinoServices {
 
                 await Mino.Database.setProviderKeyState(key, result.result, false)
                 if (result.metadata) {
-                    const metadataObj: Record<string, any> = { ...result.metadata }
+                    const metadataObj: ProviderKeyMetadata = { info: result.metadata }
 
                     if (keyData.metadata?.endpoint) {
                         metadataObj.endpoint = keyData.metadata.endpoint
