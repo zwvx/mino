@@ -94,7 +94,7 @@ export class MinoMemory {
             if (!files.length) return
 
             const loaded = await Promise.all(
-                files.map(async (path) => {
+                files.sort().map(async (path) => {
                     const provider = await this.parse(path)
                     this.Providers[provider.id] = provider
                     return provider.id
