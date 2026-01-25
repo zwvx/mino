@@ -58,20 +58,31 @@ export class MinoServices {
         const rlKeys = await Mino.Database.getProviderKeysByState(provider.keys_id, 'ratelimited')
         const errorKeys = await Mino.Database.getProviderKeysByState(provider.keys_id, 'error')
 
-        const providerKeys = [...rlKeys, ...errorKeys].map((key) => key.key)
+        const providerKeys = [...rlKeys, ...errorKeys]
         if (!providerKeys.length) {
             console.log(`provider <${provider.id}> has no keys to check`)
             return
         }
 
-        console.log(`checking ${providerKeys.length} keys for provider <${provider.id}>`)
+        const hasEndpointType = providerKeys.some((key) => key.metadata?.endpoint)
 
-        for await (const key of providerKeys) {
+        console.log(`checking ${providerKeys.length} keys for provider <${provider.id}> (${hasEndpointType ? 'with endpoint' : 'without endpoint'})`)
+
+        for await (const keyData of providerKeys) {
+            await Bun.sleep(instance.checkDelaySeconds * 1000)
+
+            const key = keyData.key
+            let endpoint = null
+
+            if (hasEndpointType && keyData.metadata?.endpoint) {
+                const type = keyData.metadata.endpoint
+                endpoint = provider.endpoint[type] ?? provider.endpoint.default
+            }
+
             try {
-                await Bun.sleep(instance.checkDelaySeconds * 1000)
-                const result = await instance.check(key)
+                const result = await instance.check(key, endpoint)
 
-                await Mino.Database.setProviderKeyState(key, result.result as any, false)
+                await Mino.Database.setProviderKeyState(key, result.result, false)
                 if (result.metadata) {
                     await Mino.Database.setProviderKeyMetadata(key, result.metadata)
                 }
@@ -82,6 +93,9 @@ export class MinoServices {
                         break
                     case 'disabled':
                         console.log(`[Checker] provider <${provider.id}> key <${key.slice(0, 12)}...>: disabled. meta: ${JSON.stringify(result.metadata)}`)
+                        break
+                    case 'error':
+                        console.log(`[Checker] provider <${provider.id}> key <${key.slice(0, 12)}...>: error. meta: ${JSON.stringify(result.metadata)}`)
                         break
                     default:
                         break

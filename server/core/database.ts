@@ -105,4 +105,10 @@ export class MinoDatabase {
                 eq(schema.providerKeys.state, state)
             )).all()
     }
+
+    async pruneDisabledKeys() {
+        await this.db.delete(schema.providerKeys)
+            .where(eq(schema.providerKeys.state, 'disabled'))
+            .run()
+    }
 }
