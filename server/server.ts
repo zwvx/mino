@@ -245,8 +245,18 @@ export async function startServer() {
 
                     const endpointType = providerKey.metadata?.endpoint || 'default'
                     const baseUrl = schemaMap.base ?? provider.endpoint[endpointType]
-                    const endpoint = (baseUrl + schemaMap.upstream_path + match.endpoint).replace(/([^:]\/)\/+/g, '$1')
+                    const upstreamPath = schemaMap.upstream_path
 
+                    const hasUpstreamPrefix = upstreamPath && (
+                        match.endpoint === upstreamPath ||
+                        match.endpoint.startsWith(upstreamPath + '/')
+                    )
+
+                    const cleanEndpoint = hasUpstreamPrefix
+                        ? match.endpoint.slice(upstreamPath.length)
+                        : match.endpoint
+
+                    const endpoint = (baseUrl + upstreamPath + cleanEndpoint).replace(/([^:]\/)\/+/g, '$1')
                     const response = await fetch(endpoint, {
                         method: schema.request.method,
                         headers: schema.request.headers,
