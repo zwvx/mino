@@ -51,6 +51,10 @@ export const Index = async () => {
                                         </span>
                                     </div>
                                 )}
+                                <div class="flex gap-4">
+                                    <span class="w-16 text-[#555] shrink-0">info</span>
+                                    <span>keys: <span id={`keys:${name}`}>-</span> • total: <span id={`spent:${name}`}>-</span></span>
+                                </div>
                             </div>
                         </details>
                     ))}

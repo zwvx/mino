@@ -6,6 +6,8 @@ import { migrate } from 'drizzle-orm/bun-sqlite/migrator'
 
 import * as schema from '@/data/db/schema'
 
+import { calcSpentPerScale } from '@/utils/math'
+
 export type KeyData = Awaited<ReturnType<typeof Mino.Database.getRandomProviderKey>>
 export type NonNullableKeyData = NonNullable<KeyData>
 
@@ -86,9 +88,12 @@ export class MinoDatabase {
         return this.db.select().from(schema.userAllowedProvider).where(eq(schema.userAllowedProvider.userId, userId)).all()
     }
 
-    async incrProviderGeneratedToken(providerId: string, token: number) {
+    async incrProviderTokens(providerId: string, inputTokens: number, outputTokens: number) {
         await this.db.update(schema.providers)
-            .set({ totalTokensGenerated: sql`total_tokens_generated + ${token}` })
+            .set({
+                totalTokensInput: sql`total_tokens_input + ${inputTokens}`,
+                totalTokensOutput: sql`total_tokens_output + ${outputTokens}`
+            })
             .where(eq(schema.providers.id, providerId))
             .run()
     }
@@ -122,5 +127,42 @@ export class MinoDatabase {
                 eq(schema.providerKeys.key, key)
             ))
             .run()
+    }
+
+    async getProviderInfo() {
+        const providers = Object.fromEntries(Object.entries(Mino.Memory.Providers).filter(([pid, provider]) => provider.enable && !provider.hidden))
+        const providerInfos: Record<string, any>[] = []
+
+        for (const [pid, provider] of Object.entries(providers)) {
+            const providerInfo = await this.db.select().from(schema.providers).where(eq(schema.providers.id, pid)).get()
+            if (!providerInfo) {
+                console.error(`provider <${pid}> not found in database`)
+                continue
+            }
+
+            const totalKeys = await this.db.select({ id: schema.providerKeys.id }).from(schema.providerKeys).where(and(
+                eq(schema.providerKeys.providerKeyId, provider.keys_id),
+                eq(schema.providerKeys.state, 'active')
+            )).all()
+
+            const totalInputSpent = calcSpentPerScale(providerInfo.totalTokensInput, provider.pricing.input.value, provider.pricing.input.token_scale)
+            const totalOutputSpent = calcSpentPerScale(providerInfo.totalTokensOutput, provider.pricing.output.value, provider.pricing.output.token_scale)
+
+            const usFormat = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
+            const totalSpent = usFormat.format(Math.round(totalInputSpent + totalOutputSpent))
+
+            providerInfos.push({
+                keys: {
+                    id: `keys:${pid}`,
+                    value: totalKeys.length.toString()
+                },
+                spent: {
+                    id: `spent:${pid}`,
+                    value: totalSpent
+                }
+            })
+        }
+
+        return providerInfos
     }
 }

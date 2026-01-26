@@ -17,6 +17,19 @@ async function indexScript() {
 
             state.session = session
             console.log('mino session:', state.session)
+        },
+        'provider.info': async (data: Record<string, Record<string, string>>[]) => {
+            for (const provider of data) {
+                const keys = provider.keys
+                const spent = provider.spent
+
+                if (!keys || !keys.id || !spent || !spent.id) {
+                    continue
+                }
+
+                document.getElementById(keys.id)!.textContent = keys.value ?? '-'
+                document.getElementById(spent.id)!.textContent = spent.value ?? '-'
+            }
         }
     }
 

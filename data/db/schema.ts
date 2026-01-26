@@ -9,7 +9,8 @@ export interface ProviderKeyMetadata {
 export const providers = sqliteTable('providers', {
     id: text('id').primaryKey(),
     totalRequest: integer('total_request').notNull().default(0),
-    totalTokensGenerated: integer('total_tokens_generated').notNull().default(0)
+    totalTokensInput: integer('total_tokens_input').notNull().default(0),
+    totalTokensOutput: integer('total_tokens_output').notNull().default(0)
 })
 
 export const providerKeys = sqliteTable('provider_keys', {

@@ -4,7 +4,7 @@ import { MinoMemory } from './core/memory'
 import { MinoDatabase } from './core/database'
 import { MinoServices } from './core/services'
 
-import { startServer } from './server'
+import { startServer, wsObject } from './server'
 import { extendConsoleLog } from '@/utils/logging'
 
 import * as config from '@/data/config.yml'
@@ -17,6 +17,8 @@ export class Mino {
     Memory = new MinoMemory()
     Database = new MinoDatabase()
     Services = new MinoServices()
+
+    Elysia!: Awaited<ReturnType<typeof startServer>>
 
     async init() {
         console.log(`server production mode:`, this.isProduction)
@@ -31,6 +33,8 @@ export class Mino {
         this.scheduler()
 
         this.overrideRejections()
+
+        this.Elysia = await startServer()
     }
 
     private overrideRejections() {
@@ -59,6 +63,12 @@ export class Mino {
         setInterval(() => {
             this.Memory.checkAllProviders()
         }, 30 * 60 * 1000)
+
+        setInterval(async () => {
+            this.Elysia.server?.publish('provider.info', JSON.stringify(
+                wsObject('provider.info', await this.Database.getProviderInfo())
+            ))
+        }, 5 * 1000)
     }
 }
 
@@ -67,6 +77,4 @@ if (import.meta.main) {
 
     global.Mino = new Mino()
     await global.Mino.init()
-
-    await startServer()
 }

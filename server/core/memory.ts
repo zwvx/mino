@@ -317,7 +317,7 @@ export class MinoMemory {
         const checkedProviderKeyId: string[] = []
         for await (const provider of Object.values(this.Providers)) {
             if (checkedProviderKeyId.includes(provider.keys_id)) {
-                console.log(`provider key id <${provider.keys_id}> has already been checked. skipping`)
+                console.log(`provider key id <${provider.keys_id}> (${provider.id}) has already been checked. skipping`)
                 continue
             }
 

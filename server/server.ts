@@ -20,14 +20,14 @@ import { proxyResponseStream, interceptFirstChunk } from './utils/stream'
 import { parseDuration, msToHuman } from '@/utils/time'
 import type { ResponseValidator } from '@/modules/scripts/response_validation/types'
 
-function wsObject(type: string, data: Record<string, any>) {
+export function wsObject(type: string, data: Record<string, any>) {
     return { type, data }
 }
 
 export async function startServer() {
     const serverPort = Number(Bun.env.PORT || Mino.isProduction ? Mino.Config.server.port : Mino.Config.server.port + 1)
 
-    new Elysia()
+    const instance = new Elysia()
         .use(ip).use(identity).use(cors()).use(html())
         .onBeforeHandle(({ ip, country, status }) => {
             if (!ip || !country) return status(403, 'Invalid IP or country code')
@@ -126,8 +126,7 @@ export async function startServer() {
                     // todo: log the chat?
                     const { content, tokenCount } = schema.parseSSEChatResponse(responseContent)
 
-                    const totalToken = requestToken + tokenCount
-                    await Mino.Database.incrProviderGeneratedToken(provider.id, totalToken)
+                    await Mino.Database.incrProviderTokens(provider.id, requestToken, tokenCount)
                 }
                 await Mino.Database.incrProviderRequest(provider.id)
                 cleanup()
@@ -333,14 +332,22 @@ export async function startServer() {
             }
         })
         .ws('/mino', {
-            open(ws) {
+            open: async (ws) => {
+                ws.subscribe('provider.info')
                 ws.send(wsObject('init', { session: Mino.Session }))
+                ws.send(wsObject('provider.info', await Mino.Database.getProviderInfo()))
             },
             message: async (ws, message) => {
                 console.log(ws, message)
+            },
+            close(ws) {
+                ws.unsubscribe('provider.info')
             }
         })
-        .listen(serverPort, () => {
-            console.log(`server is online. http://127.0.0.1:${serverPort}`)
-        })
+
+    instance.listen(serverPort, () => {
+        console.log(`server is online. http://127.0.0.1:${serverPort}`)
+    })
+
+    return instance
 }
