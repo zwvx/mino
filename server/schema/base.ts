@@ -20,7 +20,7 @@ export class SchemaRequest {
             'x-forwarded-port',
             'x-real-ip',
             'x-request-id',
-            'cf-conncting-ip',
+            'cf-connecting-ip',
             'cf-ray',
             'cf-visitor',
             'cf-ipcountry',
