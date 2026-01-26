@@ -24,6 +24,10 @@ export function wsObject(type: string, data: Record<string, any>) {
     return { type, data }
 }
 
+const blueBgWhiteTx = `\x1b[44;37m`
+const greenBgWhiteTx = `\x1b[42;37m`
+const colorReset = `\x1b[0m`
+
 export async function startServer() {
     const serverPort = Number(Bun.env.PORT || Mino.isProduction ? Mino.Config.server.port : Mino.Config.server.port + 1)
 
@@ -100,7 +104,11 @@ export async function startServer() {
                 if (cleanupCalled) return
                 cleanupCalled = true
 
-                console.log(`[${identityKey}] [${identity.schema}] ${pathname} took ${(perf.now() - requestStart).toFixed(2)}ms`)
+                if (isChatCompletion) {
+                    console.log(`${greenBgWhiteTx}[${identityKey}]${colorReset} [${identity.schema}] ${pathname} took ${(perf.now() - requestStart).toFixed(2)}ms`)
+                } else {
+                    console.log(`[${identityKey}] [${identity.schema}] ${pathname} took ${(perf.now() - requestStart).toFixed(2)}ms`)
+                }
 
                 if (concurrencyIncremented) {
                     Mino.Memory.decrActiveRequests(identityKey)
@@ -186,7 +194,7 @@ export async function startServer() {
                     Mino.Memory.incrActiveRequests(identityKey)
                     concurrencyIncremented = true
 
-                    console.log(`[${identityKey}] [${identity.schema}] [${provider.id}] chat completion request. input tokens: ${requestToken.toLocaleString()}`)
+                    console.log(`${blueBgWhiteTx}[${identityKey}]${colorReset} [${identity.schema}] [${provider.id}] chat completion request. input tokens: ${requestToken.toLocaleString()}`)
                 }
 
                 let retryCount = 0
