@@ -149,7 +149,7 @@ export class MinoDatabase {
             const totalOutputSpent = calcSpentPerScale(providerInfo.totalTokensOutput, provider.pricing.output.value, provider.pricing.output.token_scale)
 
             const usFormat = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
-            const totalSpent = usFormat.format(Math.round(totalInputSpent + totalOutputSpent))
+            const totalSpent = usFormat.format(totalInputSpent + totalOutputSpent)
 
             providerInfos.push({
                 keys: {
