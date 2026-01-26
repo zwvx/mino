@@ -7,7 +7,7 @@ import { html } from '@elysiajs/html'
 import { ip } from './plugins/cloudflare'
 import { identity } from './plugins/identity'
 import { matchProvider } from './utils/route'
-import { checkRequestSpike } from './security/request-spike'
+import { checkRequestSpike, markIpVerified } from './security/request-spike'
 
 import * as requestSchema from './schema'
 import type { SchemaRequestType } from './schema'
@@ -15,6 +15,8 @@ import type { SchemaRequestType } from './schema'
 import type { NonNullableKeyData } from './core/database'
 
 import { Index } from './views'
+import { Verify } from './views/verify'
+import { FallbackView } from './views/fallback'
 
 import { proxyResponseStream, interceptFirstChunk } from './utils/stream'
 import { parseDuration, msToHuman } from '@/utils/time'
@@ -38,6 +40,38 @@ export async function startServer() {
         })
         .get('/', async () => {
             return await Index()
+        })
+        .get('/verify', async () => {
+            return await Verify()
+        })
+        .post('/verify', async ({ request, ip, status }) => {
+            const body = await request.json().catch(() => null) as { token?: string } | null
+            if (!body?.token) {
+                return status(400, { success: false, error: 'missing token' })
+            }
+
+            const secretKey = Mino.isProduction
+                ? Mino.Config.cloudflare.turnstile.secret_key
+                : '1x0000000000000000000000000000000AA'
+
+            const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    secret: secretKey,
+                    response: body.token,
+                    remoteip: ip
+                })
+            })
+
+            const result = await response.json() as { success: boolean }
+            if (result.success) {
+                markIpVerified(ip!)
+                console.log(`[${ip}] IP verified`)
+                return { success: true }
+            }
+
+            return status(400, { success: false, error: 'verification failed' })
         })
         .all('/x/*', async ({ request, ip, country, identity, status }) => {
             const requestStart = perf.now()
@@ -78,9 +112,8 @@ export async function startServer() {
             if (!identity.key) return status(400)
             const identityKey = identity.key
 
-            const activeRequests = Mino.Memory.getActiveRequests(identityKey)
-            if (activeRequests >= provider.concurrency.identity && identity.user?.tier !== 'ADMIN') {
-                return status(429)
+            if (match.endpoint === '/' || pathname === `/x/${match.provider}`) {
+                return FallbackView()
             }
 
             const schemaMap = provider.schema?.find((s) => s.id === identity.schema)
@@ -144,7 +177,7 @@ export async function startServer() {
                 schema = new requestSchema.default[identity.schema](request.clone())
 
                 if (checkRequestSpike(ip!)) {
-                    return status(429, schema.errorObject(`Mino is currently under high load. Visit "/verify/v1" to verify your IP.`, 'invalid_request_error', 'under_attack'))
+                    return status(429, schema.errorObject(`Mino is currently under high load. Visit "/verify" to verify your IP.`, 'invalid_request_error', 'under_attack'))
                 }
 
                 isChatCompletion = schema.isChatCompletionEndpoint()
@@ -155,8 +188,13 @@ export async function startServer() {
 
                 if (schema.isModelListEndpoint()) {
                     const models = Mino.Memory.getProviderModels(provider.id)
-                    if (!models) return status(503)
+                    if (!models) return status(503, schema.errorObject(`Failed to retrieve models from provider.`, 'server_error', 'provider_unavailable'))
                     return status(200, schema.getObjectModels(models))
+                }
+
+                const activeRequests = Mino.Memory.getActiveRequests(identityKey)
+                if (activeRequests >= provider.concurrency.identity && identity.user?.tier !== 'ADMIN') {
+                    return status(429, schema.errorObject(`Identity concurrency exceeded. Maximum ${provider.concurrency.identity} requests at a time.`, 'invalid_request_error', 'concurrency_limit_exceeded'))
                 }
 
                 if (identity.user?.tier !== 'ADMIN') {

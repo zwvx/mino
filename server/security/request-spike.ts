@@ -30,6 +30,11 @@ function activateSpikeMode(reason: string): void {
 }
 
 export function checkRequestSpike(ip: string): boolean {
+    const verifiedUntil = Mino.Memory.Security.verifiedIps.get(ip)
+    if (verifiedUntil && verifiedUntil > Date.now()) {
+        return false
+    }
+
     if (checkSpikeExpiry()) {
         return true
     }
@@ -60,6 +65,13 @@ export function checkRequestSpike(ip: string): boolean {
     return false
 }
 
+export function markIpVerified(ip: string): void {
+    const expiresAt = Mino.Memory.Security.spikeMode.expiresAt
+    if (expiresAt > Date.now()) {
+        Mino.Memory.Security.verifiedIps.set(ip, expiresAt)
+    }
+}
+
 export function isSpikeMode(): boolean {
     return checkSpikeExpiry()
 }
@@ -72,4 +84,6 @@ export function resetSpikeMode(): void {
     }
     Mino.Memory.Security.perIpTracking.clear()
     Mino.Memory.Security.globalTracking = []
+    Mino.Memory.Security.verifiedIps.clear()
 }
+

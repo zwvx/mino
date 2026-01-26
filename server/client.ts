@@ -45,6 +45,34 @@ async function indexScript() {
     ws.connect()
 }
 
+async function verifyScript() {
+    (window as any).onTurnstileVerify = async (token: string) => {
+        const statusEl = document.getElementById('verify-status')
+        if (!statusEl) return
+
+        statusEl.textContent = 'verifying...'
+
+        try {
+            const res = await fetch('/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token })
+            })
+
+            const data = await res.json()
+            if (data.success) {
+                statusEl.innerHTML = '<span class="text-[#60d860]">verified. you can go back and continue.</span>'
+            } else {
+                statusEl.innerHTML = '<span class="text-[#d86060]">verification failed. try again.</span>'
+            }
+        } catch {
+            statusEl.innerHTML = '<span class="text-[#d86060]">error. try again.</span>'
+        }
+    }
+}
+
 if (window.location.pathname === '/') {
     indexScript()
+} else if (window.location.pathname === '/verify') {
+    verifyScript()
 }

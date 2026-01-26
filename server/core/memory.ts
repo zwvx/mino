@@ -32,7 +32,8 @@ export class MinoMemory {
             expiresAt: 0
         },
         perIpTracking: new Map<string, number[]>(),
-        globalTracking: [] as number[]
+        globalTracking: [] as number[],
+        verifiedIps: new Map<string, number>()
     }
 
     private cleanupInterval: Timer | null = null
