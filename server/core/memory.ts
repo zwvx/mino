@@ -51,6 +51,12 @@ export class MinoMemory {
         for (const [providerId, provider] of Object.entries(this.Providers)) {
             if (!provider.enable) continue
 
+            if (provider.override && provider.override.models.length > 0) {
+                this.setProviderModels(providerId, provider.override.models as string[])
+                console.log(`cached ${provider.override.models.length} models for ${providerId} (override)`)
+                continue
+            }
+
             const failedKeys: string[] = []
             let success = false
 
@@ -308,8 +314,15 @@ export class MinoMemory {
     }
 
     async checkAllProviders() {
+        const checkedProviderKeyId: string[] = []
         for await (const provider of Object.values(this.Providers)) {
+            if (checkedProviderKeyId.includes(provider.keys_id)) {
+                console.log(`provider key id <${provider.keys_id}> has already been checked. skipping`)
+                continue
+            }
+
             await Mino.Services.checkProviderKeys(provider)
+            checkedProviderKeyId.push(provider.keys_id)
         }
     }
 }

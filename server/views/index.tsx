@@ -36,6 +36,10 @@ export const Index = async () => {
 
                             <div class="pl-4 py-1 space-y-0.5 font-mono text-sm text-[#888] overflow-x-auto whitespace-nowrap">
                                 <div class="flex gap-4">
+                                    <span class="w-16 text-[#555] shrink-0">auth</span>
+                                    {data.require_auth ? <span class="text-[#d86060]">required</span> : <span class="text-[#60d860]">no</span>}
+                                </div>
+                                <div class="flex gap-4">
                                     <span class="w-16 text-[#555] shrink-0">endpoint</span>
                                     <span><a href={`${base}/x/${name}/`} target="_blank" rel="noopener noreferrer" class="text-[#6086d8]">{base}/x/{name}/</a></span>
                                 </div>

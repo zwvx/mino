@@ -216,8 +216,16 @@ export async function startServer() {
                         if (!isRetryable) {
                             Mino.Memory.incrKeyUsage(identityKey, provider.keys_id)
 
+                            const errorBody = await response.text()
+                            console.error(`[${identityKey}] [${provider.id}] Non-retryable error ${statusCode}:`, errorBody)
+
+                            const isHtml = response.headers.get('content-type')?.includes('text/html') || errorBody.trim().startsWith('<')
+                            if (isHtml) {
+                                return status(statusCode, schema.errorObject('Provider upstream error', 'api_error'))
+                            }
+
                             shouldDeferCleanup = true
-                            return proxyResponseStream(new Response(response.body, {
+                            return proxyResponseStream(new Response(errorBody, {
                                 status: response.status,
                                 statusText: response.statusText,
                                 headers: response.headers
