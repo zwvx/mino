@@ -17,9 +17,9 @@ export const FallbackView = async () => {
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
                 <style>{styles}</style>
             </head>
-            <body class="bg-[#111] text-[#c0c0c0] font-mono p-6 max-w-2xl text-md">
+            <body class="bg-[#111] text-[#c0c0c0] font-mono p-6 max-w-2xl text-xs">
                 <div class="space-y-4">
-                    <pre class="leading-[1.2] tracking-normal m-0 font-mono whitespace-pre">{content}</pre>
+                    <pre class="tracking-normal m-0 font-mono whitespace-pre">{content}</pre>
                 </div>
             </body>
         </html>

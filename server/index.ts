@@ -14,6 +14,8 @@ export class Mino {
     readonly isProduction = Bun.env.NODE_ENV === 'production'
     readonly Config = config
 
+    GitHash = ''
+
     Memory = new MinoMemory()
     Database = new MinoDatabase()
     Services = new MinoServices()
@@ -33,6 +35,7 @@ export class Mino {
         this.scheduler()
 
         this.overrideRejections()
+        await this.getRepositoryHash()
 
         this.Elysia = await startServer()
     }
@@ -40,6 +43,11 @@ export class Mino {
     private overrideRejections() {
         process.on('unhandledRejection', console.error)
         process.on('uncaughtException', console.error)
+    }
+
+    private async getRepositoryHash() {
+        const hash = await Bun.$`git rev-parse HEAD`.text()
+        this.GitHash = hash.trim()
     }
 
     async buildStyles() {

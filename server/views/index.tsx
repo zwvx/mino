@@ -58,6 +58,17 @@ export const Index = async () => {
                             </div>
                         </details>
                     ))}
+
+                    <div class="mt-8 pt-4 border-t border-dashed border-[#222] font-mono text-xs text-[#666] whitespace-nowrap">
+                        <div class="flex gap-4">
+                            <span class="w-9 shrink-0 text-[#444] select-none">build</span>
+                            <span title={Mino.GitHash} class="cursor-help hover:text-[#888] transition-colors">{Mino.GitHash.slice(0, 7)}</span>
+                        </div>
+                        <div class="flex gap-4">
+                            <span class="w-9 shrink-0 text-[#444] select-none">source</span>
+                            <a href="https://github.com/zwvx/mino" target="_blank" rel="noopener noreferrer" class="hover:text-[#888] transition-colors">github.com/zwvx/mino</a>
+                        </div>
+                    </div>
                 </div>
                 <script>{client}</script>
             </body>
