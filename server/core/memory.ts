@@ -326,4 +326,12 @@ export class MinoMemory {
             checkedProviderKeyId.push(provider.keys_id)
         }
     }
+
+    async getTotalActiveRequests() {
+        let count = 0
+        for await (const session of this.Sessions.values()) {
+            count += session.activeRequests
+        }
+        return count
+    }
 }

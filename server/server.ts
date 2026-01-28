@@ -133,15 +133,9 @@ export async function startServer() {
             let skipCooldownUpdate = false
             let cleanupCalled = false
 
-            const cleanup = () => {
+            const cleanup = async () => {
                 if (cleanupCalled) return
                 cleanupCalled = true
-
-                if (isChatCompletion) {
-                    console.log(`${greenBgWhiteTx}[${identityKey}]${colorReset} [${identity.schema}] ${pathname} took ${(perf.now() - requestStart).toFixed(2)}ms`)
-                } else {
-                    console.log(`[${identityKey}] [${identity.schema}] ${pathname} took ${(perf.now() - requestStart).toFixed(2)}ms`)
-                }
 
                 if (concurrencyIncremented) {
                     Mino.Memory.decrActiveRequests(identityKey)
@@ -160,6 +154,18 @@ export async function startServer() {
                         console.error('Failed to parse cooldown', e)
                     }
                 }
+
+                if (isChatCompletion) {
+                    console.log(`${greenBgWhiteTx}[${identityKey}]${colorReset} [${identity.schema}] ${pathname} took ${(perf.now() - requestStart).toFixed(2)}ms`)
+
+                    try {
+                        instance.server?.publish('provider.info', JSON.stringify(
+                            wsObject('active.session', { value: await Mino.Memory.getTotalActiveRequests() })
+                        ))
+                    } catch { }
+                } else {
+                    console.log(`[${identityKey}] [${identity.schema}] ${pathname} took ${(perf.now() - requestStart).toFixed(2)}ms`)
+                }
             }
 
             const handleResponseComplete = async (responseContent: string) => {
@@ -168,6 +174,12 @@ export async function startServer() {
                     const { content, tokenCount } = schema.parseSSEChatResponse(responseContent)
 
                     await Mino.Database.incrProviderTokens(provider.id, requestToken, tokenCount)
+
+                    try {
+                        instance.server?.publish('provider.info', JSON.stringify(
+                            wsObject('total.tokens', { value: await Mino.Database.getTotalProviderTokens() })
+                        ))
+                    } catch { }
                 }
                 await Mino.Database.incrProviderRequest(provider.id)
                 cleanup()
@@ -233,6 +245,12 @@ export async function startServer() {
                     concurrencyIncremented = true
 
                     console.log(`${blueBgWhiteTx}[${identityKey}]${colorReset} [${identity.schema}] [${provider.id}] chat completion request. input tokens: ${requestToken.toLocaleString()}`)
+
+                    try {
+                        instance.server?.publish('provider.info', JSON.stringify(
+                            wsObject('active.session', { value: await Mino.Memory.getTotalActiveRequests() })
+                        ))
+                    } catch { }
                 }
 
                 let retryCount = 0
@@ -392,6 +410,8 @@ export async function startServer() {
                 ws.subscribe('provider.info')
                 ws.send(wsObject('init', { session: Mino.Session }))
                 ws.send(wsObject('provider.info', await Mino.Database.getProviderInfo()))
+                ws.send(wsObject('active.session', { value: await Mino.Memory.getTotalActiveRequests() }))
+                ws.send(wsObject('total.tokens', { value: await Mino.Database.getTotalProviderTokens() }))
             },
             message: async (ws, message) => {
                 console.log(ws, message)

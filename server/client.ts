@@ -30,6 +30,12 @@ async function indexScript() {
                 document.getElementById(keys.id)!.textContent = keys.value ?? '-'
                 document.getElementById(spent.id)!.textContent = spent.value ?? '-'
             }
+        },
+        'active.session': async ({ value }: any) => {
+            document.getElementById('active-session')!.textContent = value
+        },
+        'total.tokens': async ({ value }: any) => {
+            document.getElementById('total-tokens')!.textContent = value.toLocaleString()
         }
     }
 

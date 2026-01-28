@@ -28,6 +28,17 @@ export const Index = async () => {
                 <h1 class="text-lg font-bold mb-4 tracking-tight">mino (wip)</h1>
 
                 <div class="space-y-1">
+                    <div class="mb-6 font-mono text-sm text-[#888] space-y-0.5">
+                        <div class="flex gap-4">
+                            <span class="w-19 text-[#555] shrink-0 select-none">proompters</span>
+                            <span id="active-session" class="text-[#ccc]">...</span>
+                        </div>
+                        <div class="flex gap-4">
+                            <span class="w-19 text-[#555] shrink-0 select-none">tookens</span>
+                            <span id="total-tokens" class="text-[#ccc]">...</span>
+                        </div>
+                    </div>
+
                     {Object.entries(providers).map(([name, data]: [string, any]) => (
                         <details class="group">
                             <summary class="cursor-pointer hover:text-[#fff] select-none text-[#aaa] group-open:text-[#eee]">

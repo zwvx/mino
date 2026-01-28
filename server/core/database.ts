@@ -165,4 +165,12 @@ export class MinoDatabase {
 
         return providerInfos
     }
+
+    async getTotalProviderTokens() {
+        const result = await this.db.select({
+            total: sql<number>`COALESCE(SUM(total_tokens_input + total_tokens_output), 0)`
+        }).from(schema.providers).get()
+
+        return result?.total ?? 0
+    }
 }
