@@ -214,10 +214,13 @@ export async function startServer() {
                     return status(200, schema.getObjectModels(models))
                 }
 
-                const activeRequests = Mino.Memory.getActiveRequests(identityKey)
-                if (activeRequests >= provider.concurrency.identity && identity.user?.tier !== 'ADMIN') {
-                    console.log(`${yellowTx}[${identityKey}]${colorReset} concurrency limit reached (${activeRequests}/${provider.concurrency.identity})`)
-                    return status(429, schema.errorObject(`Identity concurrency exceeded. Maximum ${provider.concurrency.identity} requests at a time.`, 'invalid_request_error', 'concurrency_limit_exceeded'))
+                if (identity.user?.tier !== 'ADMIN') {
+                    if (!Mino.Memory.tryIncrActiveRequests(identityKey, provider.concurrency.identity)) {
+                        const activeRequests = Mino.Memory.getActiveRequests(identityKey)
+                        console.log(`${yellowTx}[${identityKey}]${colorReset} concurrency limit reached (${activeRequests}/${provider.concurrency.identity})`)
+                        return status(429, schema.errorObject(`Identity concurrency exceeded. Maximum ${provider.concurrency.identity} requests at a time.`, 'invalid_request_error', 'concurrency_limit_exceeded'))
+                    }
+                    concurrencyIncremented = true
                 }
 
                 if (identity.user?.tier !== 'ADMIN') {
@@ -253,8 +256,6 @@ export async function startServer() {
                         }
                     }
 
-                    Mino.Memory.incrActiveRequests(identityKey)
-                    concurrencyIncremented = true
 
                     console.log(`${blueBgWhiteTx}[${identityKey}]${colorReset} [${identity.schema}] [${provider.id}] chat completion request. input tokens: ${requestToken.toLocaleString()}`)
 

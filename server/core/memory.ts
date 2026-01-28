@@ -209,6 +209,15 @@ export class MinoMemory {
         return this.getSession(identity)?.activeRequests || 0
     }
 
+    tryIncrActiveRequests(identity: string, limit: number): boolean {
+        const session = this.getOrCreateSession(identity)
+        if (session.activeRequests >= limit) {
+            return false
+        }
+        session.activeRequests++
+        return true
+    }
+
     incrActiveRequests(identity: string): number {
         const session = this.getOrCreateSession(identity)
         session.activeRequests++
