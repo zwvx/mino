@@ -290,7 +290,8 @@ export async function startServer() {
                     const response = await fetch(endpoint, {
                         method: schema.request.method,
                         headers: schema.request.headers,
-                        body: bodyBuffer
+                        body: bodyBuffer,
+                        signal: request.signal
                     })
 
                     if (!response.ok) {
@@ -417,6 +418,12 @@ export async function startServer() {
                 console.log(`${redBgWhiteTx}[${identityKey}]${colorReset} ${redTx}max retries exceeded (${maxRetryCount}), all keys unavailable${colorReset}`)
                 return status(500, schema.errorObject('Your allocated keys are currently unavailable. Try again?', 'api_error'))
             } catch (err) {
+                if (err instanceof Error && err.name === 'AbortError') {
+                    console.log(`${yellowTx}[${identityKey}]${colorReset} client disconnected, request aborted`)
+                    shouldDeferCleanup = false
+                    return
+                }
+
                 console.error(`${redTx}[${identityKey}] uncaught error:${colorReset}`, err)
                 shouldDeferCleanup = false
                 return status(500)
