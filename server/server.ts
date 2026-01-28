@@ -28,6 +28,10 @@ export function wsObject(type: string, data: Record<string, any>) {
 
 const blueBgWhiteTx = `\x1b[44;37m`
 const greenBgWhiteTx = `\x1b[42;37m`
+const redBgWhiteTx = `\x1b[41;37m`
+const yellowTx = `\x1b[33m`
+const redTx = `\x1b[31m`
+const cyanTx = `\x1b[36m`
 const colorReset = `\x1b[0m`
 
 export async function startServer() {
@@ -169,26 +173,32 @@ export async function startServer() {
             }
 
             const handleResponseComplete = async (responseContent: string) => {
-                if (schema && isChatCompletion) {
-                    // todo: log the chat?
-                    const { content, tokenCount } = schema.parseSSEChatResponse(responseContent)
+                try {
+                    if (schema && isChatCompletion) {
+                        // todo: log the chat?
+                        const { content, tokenCount } = schema.parseSSEChatResponse(responseContent)
 
-                    await Mino.Database.incrProviderTokens(provider.id, requestToken, tokenCount)
+                        await Mino.Database.incrProviderTokens(provider.id, requestToken, tokenCount)
 
-                    try {
-                        instance.server?.publish('provider.info', JSON.stringify(
-                            wsObject('total.tokens', { value: await Mino.Database.getTotalProviderTokens() })
-                        ))
-                    } catch { }
+                        try {
+                            instance.server?.publish('provider.info', JSON.stringify(
+                                wsObject('total.tokens', { value: await Mino.Database.getTotalProviderTokens() })
+                            ))
+                        } catch { }
+                    }
+                    await Mino.Database.incrProviderRequest(provider.id)
+                } catch (err) {
+                    console.error(`${redTx}[${identityKey}] error in handleResponseComplete:${colorReset}`, err)
+                } finally {
+                    cleanup()
                 }
-                await Mino.Database.incrProviderRequest(provider.id)
-                cleanup()
             }
 
             try {
                 schema = new requestSchema.default[identity.schema](request.clone())
 
                 if (checkRequestSpike(ip!)) {
+                    console.log(`${redBgWhiteTx}[${identityKey}]${colorReset} ${redTx}request spike detected, blocking${colorReset}`)
                     return status(429, schema.errorObject(`Mino is currently under high load. Visit "/verify" to verify your IP.`, 'invalid_request_error', 'under_attack'))
                 }
 
@@ -206,6 +216,7 @@ export async function startServer() {
 
                 const activeRequests = Mino.Memory.getActiveRequests(identityKey)
                 if (activeRequests >= provider.concurrency.identity && identity.user?.tier !== 'ADMIN') {
+                    console.log(`${yellowTx}[${identityKey}]${colorReset} concurrency limit reached (${activeRequests}/${provider.concurrency.identity})`)
                     return status(429, schema.errorObject(`Identity concurrency exceeded. Maximum ${provider.concurrency.identity} requests at a time.`, 'invalid_request_error', 'concurrency_limit_exceeded'))
                 }
 
@@ -215,6 +226,7 @@ export async function startServer() {
 
                     if (nextAllowedAt > now) {
                         skipCooldownUpdate = true
+                        console.log(`${yellowTx}[${identityKey}]${colorReset} cooldown request: ${msToHuman(nextAllowedAt - now)}`)
                         return status(429, schema.errorObject(`Please wait ${msToHuman(nextAllowedAt - now)} before sending another ${isChatCompletion ? 'chat completion' : 'request'}`, 'invalid_request_error', 'cooldown'))
                     }
                 }
@@ -290,7 +302,7 @@ export async function startServer() {
                             Mino.Memory.incrKeyUsage(identityKey, provider.keys_id)
 
                             const errorBody = await response.text()
-                            console.error(`[${identityKey}] [${provider.id}] Non-retryable error ${statusCode}:`, errorBody)
+                            console.log(`${redTx}[${identityKey}] [${provider.id}] non-retryable error ${statusCode}${colorReset}`)
 
                             const isHtml = response.headers.get('content-type')?.includes('text/html') || errorBody.trim().startsWith('<')
                             if (isHtml) {
@@ -306,6 +318,7 @@ export async function startServer() {
                         }
 
                         if (statusCode === 401) {
+                            console.log(`${redTx}[${identityKey}] key <${providerKey.key.slice(0, 12)}...> unauthorized (401)${colorReset}`)
                             if (!provider.concurrency.keys.key_stay_active) {
                                 await Mino.Database.setProviderKeyState(providerKey.key, 'disabled')
                             }
@@ -313,6 +326,7 @@ export async function startServer() {
                         }
 
                         if ([402, 429].includes(statusCode)) {
+                            console.log(`${yellowTx}[${identityKey}] key <${providerKey.key.slice(0, 12)}...> ratelimited (${statusCode})${colorReset}`)
                             if (!provider.concurrency.keys.key_stay_active) {
                                 await Mino.Database.setProviderKeyState(providerKey.key, 'ratelimited')
                             }
@@ -328,6 +342,7 @@ export async function startServer() {
                         }
 
                         retryCount++
+                        console.log(`${cyanTx}[${identityKey}] retrying request (${retryCount}/${maxRetryCount})${colorReset}`)
                         continue
                     }
 
@@ -380,6 +395,11 @@ export async function startServer() {
                                     statusText: response.statusText,
                                     headers: respHeaders
                                 }), (res) => handleResponseComplete(intercepted.firstChunk + res))
+                            } else {
+                                Mino.Memory.decrKeyConcurrency(providerKey.key)
+                                allocatedKeyId = null
+                                retryCount++
+                                continue
                             }
                         }
                     }
@@ -394,9 +414,10 @@ export async function startServer() {
                     }), handleResponseComplete)
                 }
 
+                console.log(`${redBgWhiteTx}[${identityKey}]${colorReset} ${redTx}max retries exceeded (${maxRetryCount}), all keys unavailable${colorReset}`)
                 return status(500, schema.errorObject('Your allocated keys are currently unavailable. Try again?', 'api_error'))
             } catch (err) {
-                console.error(err)
+                console.error(`${redTx}[${identityKey}] uncaught error:${colorReset}`, err)
                 shouldDeferCleanup = false
                 return status(500)
             } finally {
