@@ -138,11 +138,20 @@ export async function startServer() {
             let cleanupCalled = false
 
             const cleanup = async () => {
-                if (cleanupCalled) return
+                const activeBeforeCleanup = Mino.Memory.getActiveRequests(identityKey)
+                console.log(`${cyanTx}[DEBUG] [${identityKey}] cleanup called. cleanupCalled=${cleanupCalled}, concurrencyIncremented=${concurrencyIncremented}, activeRequests=${activeBeforeCleanup}${colorReset}`)
+
+                if (cleanupCalled) {
+                    console.log(`${yellowTx}[DEBUG] [${identityKey}] cleanup already called, skipping${colorReset}`)
+                    return
+                }
                 cleanupCalled = true
 
                 if (concurrencyIncremented) {
-                    Mino.Memory.decrActiveRequests(identityKey)
+                    const afterDecr = Mino.Memory.decrActiveRequests(identityKey)
+                    console.log(`${cyanTx}[DEBUG] [${identityKey}] decremented activeRequests: ${activeBeforeCleanup} -> ${afterDecr}${colorReset}`)
+                } else {
+                    console.log(`${yellowTx}[DEBUG] [${identityKey}] concurrencyIncremented=false, no decrement${colorReset}`)
                 }
 
                 if (allocatedKeyId) {
@@ -221,6 +230,8 @@ export async function startServer() {
                         return status(429, schema.errorObject(`Identity concurrency exceeded. Maximum ${provider.concurrency.identity} requests at a time.`, 'invalid_request_error', 'concurrency_limit_exceeded'))
                     }
                     concurrencyIncremented = true
+                    const activeAfter = Mino.Memory.getActiveRequests(identityKey)
+                    console.log(`${cyanTx}[DEBUG] [${identityKey}] concurrency incremented, activeRequests now: ${activeAfter}${colorReset}`)
                 }
 
                 if (identity.user?.tier !== 'ADMIN') {
@@ -255,7 +266,6 @@ export async function startServer() {
                             return status(400, schema.errorObject(`Token limit exceeded. Maximum ${provider.limit.payload.input} tokens.`, 'invalid_request_error', 'token_limit_exceeded'))
                         }
                     }
-
 
                     console.log(`${blueBgWhiteTx}[${identityKey}]${colorReset} [${identity.schema}] [${provider.id}] chat completion request. input tokens: ${requestToken.toLocaleString()}`)
 

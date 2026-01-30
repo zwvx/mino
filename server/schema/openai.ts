@@ -11,7 +11,8 @@ export class OpenAIRequest extends SchemaRequest {
     }
 
     override isModelListEndpoint(): boolean {
-        return this.request.url.endsWith('/models')
+        const url = new URL(this.request.url)
+        return url.pathname.endsWith('/models') || url.pathname.endsWith('/models/')
     }
 
     override getRequestToken(bodyBuffer: ArrayBuffer): number | null {
