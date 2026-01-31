@@ -19,7 +19,7 @@ export interface Provider {
     pricing: Pricing;
     concurrency: Concurrency;
     override: Override;
-    filter_models: any[];
+    filter_models: string[];
     scripts: Scripts;
     cooldown: Cooldown;
 }

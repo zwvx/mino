@@ -37,7 +37,13 @@ export class MinoServices {
             throw new Error(`invalid models response for <${provider.id}>`)
         }
 
-        return data.data.map((m) => m.id)
+        let models = data.data.map((m) => m.id)
+
+        if (provider.filter_models && Array.isArray(provider.filter_models) && provider.filter_models.length > 0) {
+            models = models.filter((id) => provider.filter_models.includes(id))
+        }
+
+        return models
     }
 
     async checkProviderKeys(provider: Provider) {
