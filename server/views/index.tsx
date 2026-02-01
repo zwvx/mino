@@ -81,7 +81,7 @@ export const Index = async () => {
                         </div>
                     </div>
                 </div>
-                <canvas id="cursor-canvas" class="absolute top-0 left-0 pointer-events-none z-50"></canvas>
+                <canvas id="cursor-canvas" class="fixed top-0 left-0 w-screen h-screen pointer-events-none z-50"></canvas>
                 <script>{client}</script>
             </body>
         </html>

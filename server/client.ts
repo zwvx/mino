@@ -69,13 +69,11 @@ class Cursor {
 
     private resizeCanvas() {
         if (!this.canvas) return
-        const width = document.documentElement.scrollWidth
-        const height = document.documentElement.scrollHeight
+        const width = window.innerWidth
+        const height = window.innerHeight
 
         this.canvas.width = width * this.dpr
         this.canvas.height = height * this.dpr
-        this.canvas.style.width = `${width}px`
-        this.canvas.style.height = `${height}px`
 
         this.ctx?.scale(this.dpr, this.dpr)
         this.render()
@@ -131,17 +129,25 @@ class Cursor {
         this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
         this.ctx.clearRect(0, 0, width, height)
 
+        const scrollX = window.scrollX
+        const scrollY = window.scrollY
+
         const now = Date.now()
         this.clicks = this.clicks.filter(click => {
             const elapsed = now - click.startTime
             if (elapsed > this.CLICK_DURATION) return false
+
+            const screenX = click.x - scrollX
+            const screenY = click.y - scrollY
+
+            if (screenX < -50 || screenY < -50 || screenX > width + 50 || screenY > height + 50) return true
 
             const progress = elapsed / this.CLICK_DURATION
             const radius = 20 * progress
             const alpha = 1 - progress
 
             this.ctx!.beginPath()
-            this.ctx!.arc(click.x, click.y, radius, 0, Math.PI * 2)
+            this.ctx!.arc(screenX, screenY, radius, 0, Math.PI * 2)
             this.ctx!.globalAlpha = alpha
             this.ctx!.strokeStyle = click.color
             this.ctx!.lineWidth = 2 * (1 - progress * 0.5)
@@ -154,6 +160,11 @@ class Cursor {
             cursor.currentX += (cursor.targetX - cursor.currentX) * this.LERP_FACTOR
             cursor.currentY += (cursor.targetY - cursor.currentY) * this.LERP_FACTOR
 
+            const screenX = cursor.currentX - scrollX
+            const screenY = cursor.currentY - scrollY
+
+            if (screenX < -50 || screenY < -50 || screenX > width + 50 || screenY > height + 50) return
+
             const idleTime = now - cursor.lastUpdate
             const opacity = idleTime > this.IDLE_TIMEOUT
                 ? this.MIN_OPACITY
@@ -161,7 +172,7 @@ class Cursor {
 
             this.ctx!.save()
             this.ctx!.globalAlpha = opacity
-            this.ctx!.translate(cursor.currentX - 5, cursor.currentY - 2)
+            this.ctx!.translate(screenX - 5, screenY - 2)
             this.ctx!.fillStyle = cursor.color
             this.ctx!.fill(this.cursorPath)
             this.ctx!.restore()
