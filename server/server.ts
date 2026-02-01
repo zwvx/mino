@@ -263,7 +263,7 @@ export async function startServer() {
                         const models = Mino.Memory.getProviderModels(provider.id)
                         if (models && !models.includes(modelId) && identity.user?.tier !== 'ADMIN') {
                             console.warn(`[${identityKey}] tried to use model "${modelId}" but it is not allowed or not found.`)
-                            return status(400, schema.errorObject(`Model "${modelId}" is not allowed or not found.`, 'invalid_request_error', 'model_not_found'))
+                            return status(400, schema.errorObject(`Model "${modelId}" is not allowed or not found. ${models ? `Allowed models: ${models.map(model => `"${model}"`).join(', ')}` : ''}`, 'invalid_request_error', 'model_not_found'))
                         }
                     } else {
                         return status(400, schema.errorObject('Model not specified.', 'invalid_request_error', 'model_not_specified'))
@@ -281,7 +281,7 @@ export async function startServer() {
                     if (identity.user?.tier !== 'ADMIN') {
                         if (requestToken > provider.limit.payload.input) {
                             console.warn(`[${identityKey}] sends too many tokens for chat completion. ${requestToken.toLocaleString()} > ${provider.limit.payload.input.toLocaleString()}`)
-                            return status(400, schema.errorObject(`Token limit exceeded. Maximum ${provider.limit.payload.input} tokens. ${requestToken.toLocaleString()} tokens sent.`, 'invalid_request_error', 'token_limit_exceeded'))
+                            return status(400, schema.errorObject(`Token limit exceeded. Maximum ${provider.limit.payload.input.toLocaleString()} tokens. ${requestToken.toLocaleString()} tokens sent.`, 'invalid_request_error', 'token_limit_exceeded'))
                         }
                     }
 
