@@ -118,6 +118,7 @@ export async function startServer() {
             const identityKey = identity.key
 
             if (match.endpoint === '/' || pathname === `/x/${match.provider}`) {
+                console.log(`${blueBgWhiteTx}[${identityKey}]${colorReset} [${identity.schema}] [${provider.id}] [${match.endpoint}]`)
                 if (provider.page) {
                     return ProviderView({ provider })
                 }
@@ -143,19 +144,19 @@ export async function startServer() {
 
             const cleanup = async () => {
                 const activeBeforeCleanup = Mino.Memory.getActiveRequests(identityKey)
-                console.log(`${cyanTx}[DEBUG] [${identityKey}] cleanup called. cleanupCalled=${cleanupCalled}, concurrencyIncremented=${concurrencyIncremented}, activeRequests=${activeBeforeCleanup}${colorReset}`)
+                console.debug(`${cyanTx}[${identityKey}] cleanup called. cleanupCalled=${cleanupCalled}, concurrencyIncremented=${concurrencyIncremented}, activeRequests=${activeBeforeCleanup}${colorReset}`)
 
                 if (cleanupCalled) {
-                    console.log(`${yellowTx}[DEBUG] [${identityKey}] cleanup already called, skipping${colorReset}`)
+                    console.debug(`${yellowTx}[${identityKey}] cleanup already called, skipping${colorReset}`)
                     return
                 }
                 cleanupCalled = true
 
                 if (concurrencyIncremented) {
                     const afterDecr = Mino.Memory.decrActiveRequests(identityKey)
-                    console.log(`${cyanTx}[DEBUG] [${identityKey}] decremented activeRequests: ${activeBeforeCleanup} -> ${afterDecr}${colorReset}`)
+                    console.debug(`${cyanTx}[${identityKey}] decremented activeRequests: ${activeBeforeCleanup} -> ${afterDecr}${colorReset}`)
                 } else {
-                    console.log(`${yellowTx}[DEBUG] [${identityKey}] concurrencyIncremented=false, no decrement${colorReset}`)
+                    console.debug(`${yellowTx}[${identityKey}] concurrencyIncremented=false, no decrement${colorReset}`)
                 }
 
                 if (allocatedKeyId) {
@@ -261,6 +262,7 @@ export async function startServer() {
                     if (modelId) {
                         const models = Mino.Memory.getProviderModels(provider.id)
                         if (models && !models.includes(modelId) && identity.user?.tier !== 'ADMIN') {
+                            console.warn(`[${identityKey}] tried to use model "${modelId}" but it is not allowed or not found.`)
                             return status(400, schema.errorObject(`Model "${modelId}" is not allowed or not found.`, 'invalid_request_error', 'model_not_found'))
                         }
                     } else {
@@ -270,6 +272,7 @@ export async function startServer() {
                     const tokenResult = schema.getRequestToken(bodyBuffer)
 
                     if (tokenResult === null) {
+                        console.warn(`[${identityKey}] sends invalid request body for chat completion.`)
                         return status(400, schema.errorObject('Invalid request body. Expected valid JSON with messages array.', 'invalid_request_error', 'invalid_body'))
                     }
 
@@ -277,11 +280,12 @@ export async function startServer() {
 
                     if (identity.user?.tier !== 'ADMIN') {
                         if (requestToken > provider.limit.payload.input) {
+                            console.warn(`[${identityKey}] sends too many tokens for chat completion. ${requestToken.toLocaleString()} > ${provider.limit.payload.input.toLocaleString()}`)
                             return status(400, schema.errorObject(`Token limit exceeded. Maximum ${provider.limit.payload.input} tokens.`, 'invalid_request_error', 'token_limit_exceeded'))
                         }
                     }
 
-                    console.log(`${blueBgWhiteTx}[${identityKey}]${colorReset} [${identity.schema}] [${provider.id}] chat completion request. input tokens: ${requestToken.toLocaleString()}`)
+                    console.log(`${blueBgWhiteTx}[${identityKey}]${colorReset} [${identity.schema}] [${provider.id}] [${modelId}] chat completion request. input tokens: ${requestToken.toLocaleString()}`)
 
                     try {
                         instance.server?.publish('provider.info', JSON.stringify(

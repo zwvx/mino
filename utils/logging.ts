@@ -17,4 +17,9 @@ export function extendConsoleLog(title: string) {
     console.error = (...args) => {
         error(`[${title}]`, ...args)
     }
+
+    console.debug = (...args) => {
+        if (!Mino || !Mino.isDebug) return
+        log(`[${title}]`, '[DEBUG]', ...args)
+    }
 }
