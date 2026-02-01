@@ -109,7 +109,7 @@ class ModelTTFTHealth extends ProviderFeature {
                 if (isRetryable && retryCount < maxRetries) {
                     console.log(`[${this.id}] [${this.provider.id}] key failed (${statusCode}), retrying...`)
 
-                    if (statusCode === 401) {
+                    if ([401, 403].includes(statusCode)) {
                         if (!this.provider.concurrency.keys.key_stay_active) {
                             await Mino.Database.setProviderKeyState(keyData.key, 'disabled')
                         }
