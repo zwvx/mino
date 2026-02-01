@@ -79,6 +79,10 @@ export class SchemaRequest {
         return {}
     }
 
+    getModelId(bodyBuffer: ArrayBuffer): string | null {
+        return null
+    }
+
     getObjectModels(modelIds: string[]): Record<string, any> {
         return {
             data: modelIds.map((m) => this.getObjectModel(m)),

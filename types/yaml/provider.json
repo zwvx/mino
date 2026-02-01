@@ -66,6 +66,9 @@
                 },
                 "cooldown": {
                     "$ref": "#/definitions/Cooldown"
+                },
+                "page": {
+                    "$ref": "#/definitions/Page"
                 }
             },
             "required": [
@@ -309,6 +312,48 @@
                 "default"
             ],
             "title": "Cooldown"
+        },
+        "Page": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "features": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PageFeature"
+                    }
+                }
+            },
+            "title": "Page"
+        },
+        "PageFeature": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "options": {
+                    "$ref": "#/definitions/PageFeatureOptions"
+                }
+            },
+            "required": [
+                "id"
+            ],
+            "title": "PageFeature"
+        },
+        "PageFeatureOptions": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+                "interval": {
+                    "type": "string"
+                }
+            },
+            "title": "PageFeatureOptions"
         }
     }
 }

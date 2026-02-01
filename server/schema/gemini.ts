@@ -12,6 +12,17 @@ export class GeminiRequest extends SchemaRequest {
         return validPath.some((path) => decodeURIComponent(url.pathname).endsWith(path))
     }
 
+    override getModelId(bodyBuffer: ArrayBuffer): string | null {
+        const url = new URL(this.request.url)
+        const decodedPath = decodeURIComponent(url.pathname)
+
+        const match = decodedPath.match(/\/models\/([^:]+):/)
+        if (match && match[1]) {
+            return match[1]
+        }
+        return null
+    }
+
     override getRequestToken(bodyBuffer: ArrayBuffer) {
         try {
             const decoder = new TextDecoder()

@@ -47,6 +47,17 @@ export class AnthropicRequest extends SchemaRequest {
         }
     }
 
+    override getModelId(bodyBuffer: ArrayBuffer): string | null {
+        try {
+            const decoder = new TextDecoder()
+            const body = decoder.decode(bodyBuffer)
+            const json = JSON.parse(body)
+            return json.model || null
+        } catch {
+            return null
+        }
+    }
+
     override parseSSEChatResponse(content: string) {
         try {
             let result = ''

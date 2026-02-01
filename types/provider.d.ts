@@ -22,6 +22,7 @@ export interface Provider {
     filter_models: string[];
     scripts: Scripts;
     cooldown: Cooldown;
+    page?: Page;
 }
 
 export interface Concurrency {
@@ -80,4 +81,19 @@ export interface Scripts {
 export interface Cooldown {
     default: string;
     [key: string]: string;
+}
+
+export interface PageFeatureOptions {
+    interval?: string
+    [key: string]: any
+}
+
+export interface PageFeature {
+    id: string
+    options?: PageFeatureOptions
+}
+
+export interface Page {
+    message?: string
+    features?: PageFeature[]
 }

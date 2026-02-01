@@ -30,6 +30,7 @@ export class Mino {
 
         await this.Memory.loadBlockedCIDR()
         await this.Memory.loadProviderModels()
+        await this.initFeatures()
 
         this.Memory.checkAllProviders()
         this.scheduler()
@@ -77,6 +78,39 @@ export class Mino {
                 wsObject('provider.info', await this.Database.getProviderInfo())
             ))
         }, 5 * 1000)
+    }
+
+    private async initFeatures() {
+        const { loadFeature } = await import('./scripts/features')
+
+        for (const [providerId, provider] of Object.entries(this.Memory.Providers)) {
+            if (!provider.page?.features) continue
+
+            for (const cfg of provider.page.features) {
+                const FeatureClass = await loadFeature(cfg.id)
+                if (!FeatureClass) continue
+
+                const feature = new FeatureClass(provider, cfg.options)
+                const interval = feature.getInterval()
+
+                await this.runFeatureCollect(feature, providerId)
+
+                if (interval > 0) {
+                    setInterval(() => this.runFeatureCollect(feature, providerId), interval)
+                    console.log(`scheduled feature <${cfg.id}> for <${providerId}> every ${interval}ms`)
+                }
+            }
+        }
+    }
+
+    private async runFeatureCollect(feature: InstanceType<typeof import('./scripts/features').ProviderFeature>, providerId: string) {
+        try {
+            const data = await feature.collect()
+            this.Memory.setFeatureData(providerId, feature.id, data)
+            console.log(`collected feature <${feature.id}> for <${providerId}>`)
+        } catch (err) {
+            console.error(`failed to collect feature <${feature.id}> for <${providerId}>:`, err)
+        }
     }
 }
 

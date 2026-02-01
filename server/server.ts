@@ -17,6 +17,7 @@ import type { NonNullableKeyData } from './core/database'
 import { Index } from './views'
 import { Verify } from './views/verify'
 import { FallbackView } from './views/fallback'
+import { ProviderView } from './views/provider'
 
 import { proxyResponseStream, interceptFirstChunk } from './utils/stream'
 import { parseDuration, msToHuman } from '@/utils/time'
@@ -117,6 +118,9 @@ export async function startServer() {
             const identityKey = identity.key
 
             if (match.endpoint === '/' || pathname === `/x/${match.provider}`) {
+                if (provider.page) {
+                    return ProviderView({ provider })
+                }
                 return FallbackView()
             }
 
@@ -253,6 +257,16 @@ export async function startServer() {
                 const bodyBuffer = schema.request.body ? await schema.request.arrayBuffer() : null
 
                 if (isChatCompletion && bodyBuffer) {
+                    const modelId = schema.getModelId(bodyBuffer)
+                    if (modelId) {
+                        const models = Mino.Memory.getProviderModels(provider.id)
+                        if (models && !models.includes(modelId) && identity.user?.tier !== 'ADMIN') {
+                            return status(400, schema.errorObject(`Model "${modelId}" is not allowed or not found.`, 'invalid_request_error', 'model_not_found'))
+                        }
+                    } else {
+                        return status(400, schema.errorObject('Model not specified.', 'invalid_request_error', 'model_not_specified'))
+                    }
+
                     const tokenResult = schema.getRequestToken(bodyBuffer)
 
                     if (tokenResult === null) {
@@ -308,7 +322,7 @@ export async function startServer() {
                     if (!response.ok) {
                         let invalidateKey = false
                         const statusCode = response.status
-                        const isRetryable = [401, 402, 429].includes(statusCode) || statusCode >= 500
+                        const isRetryable = [401, 402, 403, 429].includes(statusCode) || statusCode >= 500
 
                         if (!isRetryable) {
                             Mino.Memory.incrKeyUsage(identityKey, provider.keys_id)
@@ -329,8 +343,8 @@ export async function startServer() {
                             }), cleanup)
                         }
 
-                        if (statusCode === 401) {
-                            console.log(`${redTx}[${identityKey}] key <${providerKey.key.slice(0, 12)}...> unauthorized (401)${colorReset}`)
+                        if ([401, 403].includes(statusCode)) {
+                            console.log(`${redTx}[${identityKey}] key <${providerKey.key.slice(0, 12)}...> unauthorized (${statusCode})${colorReset}`)
                             if (!provider.concurrency.keys.key_stay_active) {
                                 await Mino.Database.setProviderKeyState(providerKey.key, 'disabled')
                             }

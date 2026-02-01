@@ -22,6 +22,7 @@ export class MinoMemory {
     KeyConcurrency = new Map<string, { providerKeysId: string; count: number }>()
     Providers: Record<string, Provider> = {}
     ProviderModels = new Map<string, string[]>()
+    FeatureData = new Map<string, Map<string, any>>()
 
     BlockedCIDR: BlockedCIDR = []
 
@@ -93,6 +94,19 @@ export class MinoMemory {
 
     setProviderModels(providerId: string, models: string[]): void {
         this.ProviderModels.set(providerId, models)
+    }
+
+    setFeatureData(providerId: string, featureId: string, data: any): void {
+        let features = this.FeatureData.get(providerId)
+        if (!features) {
+            features = new Map()
+            this.FeatureData.set(providerId, features)
+        }
+        features.set(featureId, data)
+    }
+
+    getFeatureData(providerId: string, featureId: string): any | null {
+        return this.FeatureData.get(providerId)?.get(featureId) ?? null
     }
 
     async loadProvider(name?: string) {
