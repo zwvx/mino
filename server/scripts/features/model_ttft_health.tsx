@@ -98,7 +98,8 @@ class ModelTTFTHealth extends ProviderFeature {
             const resp = await fetch(endpoint, {
                 method: 'POST',
                 headers: schema.request.headers,
-                body: JSON.stringify(body)
+                body: JSON.stringify(body),
+                signal: AbortSignal.timeout(10000)
             })
 
             if (!resp.ok) {

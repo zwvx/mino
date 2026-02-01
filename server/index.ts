@@ -93,7 +93,7 @@ export class Mino {
                 const feature = new FeatureClass(provider, cfg.options)
                 const interval = feature.getInterval()
 
-                await this.runFeatureCollect(feature, providerId)
+                this.runFeatureCollect(feature, providerId)
 
                 if (interval > 0) {
                     setInterval(() => this.runFeatureCollect(feature, providerId), interval)
