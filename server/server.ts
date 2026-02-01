@@ -281,7 +281,7 @@ export async function startServer() {
                     if (identity.user?.tier !== 'ADMIN') {
                         if (requestToken > provider.limit.payload.input) {
                             console.warn(`[${identityKey}] sends too many tokens for chat completion. ${requestToken.toLocaleString()} > ${provider.limit.payload.input.toLocaleString()}`)
-                            return status(400, schema.errorObject(`Token limit exceeded. Maximum ${provider.limit.payload.input} tokens.`, 'invalid_request_error', 'token_limit_exceeded'))
+                            return status(400, schema.errorObject(`Token limit exceeded. Maximum ${provider.limit.payload.input} tokens. ${requestToken.toLocaleString()} tokens sent.`, 'invalid_request_error', 'token_limit_exceeded'))
                         }
                     }
 
