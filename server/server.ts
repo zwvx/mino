@@ -312,11 +312,15 @@ export async function startServer() {
                         : match.endpoint
 
                     const endpoint = (baseUrl + upstreamPath + cleanEndpoint).replace(/([^:]\/)\/+/g, '$1')
+
+                    const timeoutSignal = AbortSignal.timeout(180_000) // 3 minutes
+                    const signal = AbortSignal.any([request.signal, timeoutSignal])
+
                     const response = await fetch(endpoint, {
                         method: schema.request.method,
                         headers: schema.request.headers,
                         body: bodyBuffer,
-                        signal: request.signal
+                        signal
                     })
 
                     if (!response.ok) {
