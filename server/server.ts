@@ -236,7 +236,7 @@ export async function startServer() {
                     }
                     concurrencyIncremented = true
                     const activeAfter = Mino.Memory.getActiveRequests(identityKey)
-                    console.log(`${cyanTx}[DEBUG] [${identityKey}] concurrency incremented, activeRequests now: ${activeAfter}${colorReset}`)
+                    console.debug(`${cyanTx}[${identityKey}] concurrency incremented, activeRequests now: ${activeAfter}${colorReset}`)
                 }
 
                 if (identity.user?.tier !== 'ADMIN') {
