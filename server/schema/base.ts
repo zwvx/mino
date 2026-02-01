@@ -83,6 +83,10 @@ export class SchemaRequest {
         return null
     }
 
+    getMaxTokens(bodyBuffer: ArrayBuffer): number | null {
+        return null
+    }
+
     getObjectModels(modelIds: string[]): Record<string, any> {
         return {
             data: modelIds.map((m) => this.getObjectModel(m)),

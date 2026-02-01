@@ -58,6 +58,17 @@ export class AnthropicRequest extends SchemaRequest {
         }
     }
 
+    override getMaxTokens(bodyBuffer: ArrayBuffer): number | null {
+        try {
+            const decoder = new TextDecoder()
+            const body = decoder.decode(bodyBuffer)
+            const json = JSON.parse(body)
+            return json.max_tokens ?? null
+        } catch {
+            return null
+        }
+    }
+
     override parseSSEChatResponse(content: string) {
         try {
             let result = ''

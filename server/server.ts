@@ -35,6 +35,59 @@ const redTx = `\x1b[31m`
 const cyanTx = `\x1b[36m`
 const colorReset = `\x1b[0m`
 
+class CursorData {
+    private static data = new Map<string, { x: number, y: number, color: string }>()
+    static wsClients = new Map<string, { clientId: string, color: string, ip: string }>()
+    private static ipCounts = new Map<string, number>()
+    private static readonly MAX_CURSORS_PER_IP = 2
+
+    private static readonly colors = [
+        '#f87171', '#fb923c', '#fbbf24', '#a3e635', '#4ade80',
+        '#2dd4bf', '#22d3ee', '#60a5fa', '#a78bfa', '#e879f9'
+    ] as const
+
+    static generateColor(): string {
+        return this.colors[Math.floor(Math.random() * this.colors.length)] as string
+    }
+
+    static canAddCursor(ip: string): boolean {
+        const count = this.ipCounts.get(ip) || 0
+        return count < this.MAX_CURSORS_PER_IP
+    }
+
+    static incrIp(ip: string) {
+        this.ipCounts.set(ip, (this.ipCounts.get(ip) || 0) + 1)
+    }
+
+    static decrIp(ip: string) {
+        const count = this.ipCounts.get(ip) || 0
+        if (count <= 1) {
+            this.ipCounts.delete(ip)
+        } else {
+            this.ipCounts.set(ip, count - 1)
+        }
+    }
+
+    static set(clientId: string, x: number, y: number, color: string) {
+        this.data.set(clientId, { x, y, color })
+    }
+
+    static get(clientId: string) {
+        return this.data.get(clientId)
+    }
+
+    static remove(clientId: string) {
+        this.data.delete(clientId)
+    }
+
+    static getAll() {
+        return Array.from(this.data.entries()).map(([clientId, data]) => ({
+            clientId,
+            ...data
+        }))
+    }
+}
+
 export async function startServer() {
     const serverPort = Number(Bun.env.PORT || Mino.isProduction ? Mino.Config.server.port : Mino.Config.server.port + 1)
 
@@ -92,6 +145,14 @@ export async function startServer() {
 
             const provider = Mino.Memory.Providers[match.provider]
             if (!provider) return status(404)
+
+            if (provider.override?.path) {
+                const normalizedEndpoint = match.endpoint.replace(/\/+/g, '/')
+                const pathOverride = provider.override.path.find((p) => p.path === normalizedEndpoint)
+                if (pathOverride) {
+                    return status(pathOverride.status)
+                }
+            }
 
             if (!identity.schema && provider.schema?.[0]) {
                 identity.schema = provider.schema[0].id as requestSchema.SchemaType
@@ -283,6 +344,12 @@ export async function startServer() {
                             console.warn(`[${identityKey}] sends too many tokens for chat completion. ${requestToken.toLocaleString()} > ${provider.limit.payload.input.toLocaleString()}`)
                             return status(400, schema.errorObject(`Token limit exceeded. Maximum ${provider.limit.payload.input.toLocaleString()} tokens. ${requestToken.toLocaleString()} tokens sent.`, 'invalid_request_error', 'token_limit_exceeded'))
                         }
+
+                        const maxTokens = schema.getMaxTokens(bodyBuffer)
+                        if (maxTokens && maxTokens > provider.limit.payload.output) {
+                            console.warn(`[${identityKey}] requests too many output tokens. ${maxTokens.toLocaleString()} > ${provider.limit.payload.output.toLocaleString()}`)
+                            return status(400, schema.errorObject(`Output token limit exceeded. Maximum ${provider.limit.payload.output.toLocaleString()} tokens. ${maxTokens.toLocaleString()} tokens requested.`, 'invalid_request_error', 'token_limit_exceeded'))
+                        }
                     }
 
                     console.log(`${blueBgWhiteTx}[${identityKey}]${colorReset} [${identity.schema}] [${provider.id}] [${modelId}] chat completion request. input tokens: ${requestToken.toLocaleString()}`)
@@ -468,17 +535,75 @@ export async function startServer() {
         })
         .ws('/mino', {
             open: async (ws) => {
+                const ip = ws.data?.ip as string || 'unknown'
+
+                if (!CursorData.canAddCursor(ip)) {
+                    ws.subscribe('provider.info')
+                    ws.subscribe('cursor')
+                    ws.send(wsObject('init', { session: Mino.Session }))
+                    ws.send(wsObject('cursor.init', { clientId: null, color: null }))
+                    ws.send(wsObject('cursor.list', CursorData.getAll()))
+                    ws.send(wsObject('provider.info', await Mino.Database.getProviderInfo()))
+                    ws.send(wsObject('active.session', { value: await Mino.Memory.getTotalActiveRequests() }))
+                    ws.send(wsObject('total.tokens', { value: await Mino.Database.getTotalProviderTokens() }))
+                    return
+                }
+
+                const clientId = crypto.randomUUID()
+                const color = CursorData.generateColor()
+                const wsId = ws.id
+
+                CursorData.wsClients.set(wsId, { clientId, color, ip })
+                CursorData.incrIp(ip)
                 ws.subscribe('provider.info')
+                ws.subscribe('cursor')
+
                 ws.send(wsObject('init', { session: Mino.Session }))
+                ws.send(wsObject('cursor.init', { clientId, color }))
+                ws.send(wsObject('cursor.list', CursorData.getAll()))
                 ws.send(wsObject('provider.info', await Mino.Database.getProviderInfo()))
                 ws.send(wsObject('active.session', { value: await Mino.Memory.getTotalActiveRequests() }))
                 ws.send(wsObject('total.tokens', { value: await Mino.Database.getTotalProviderTokens() }))
             },
             message: async (ws, message) => {
-                console.log(ws, message)
+                try {
+                    const payload = typeof message === 'string' ? JSON.parse(message) : message
+                    if (!payload.type || !payload.data) return
+
+                    const client = CursorData.wsClients.get(ws.id)
+                    if (!client) return
+
+                    if (payload.type === 'cursor.move') {
+                        const { x, y } = payload.data
+
+                        CursorData.set(client.clientId, x, y, client.color)
+
+                        instance.server?.publish('cursor', JSON.stringify(
+                            wsObject('cursor.update', { clientId: client.clientId, x, y, color: client.color })
+                        ))
+                    }
+
+                    if (payload.type === 'cursor.click') {
+                        const { x, y } = payload.data
+
+                        instance.server?.publish('cursor', JSON.stringify(
+                            wsObject('cursor.click', { clientId: client.clientId, x, y, color: client.color })
+                        ))
+                    }
+                } catch { }
             },
             close(ws) {
+                const client = CursorData.wsClients.get(ws.id)
+                if (client) {
+                    CursorData.remove(client.clientId)
+                    CursorData.wsClients.delete(ws.id)
+                    CursorData.decrIp(client.ip)
+                    instance.server?.publish('cursor', JSON.stringify(
+                        wsObject('cursor.remove', { clientId: client.clientId })
+                    ))
+                }
                 ws.unsubscribe('provider.info')
+                ws.unsubscribe('cursor')
             }
         })
 

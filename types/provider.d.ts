@@ -52,8 +52,13 @@ export interface Payload {
 
 export interface Override {
     headers: Header[];
-    path: any[];
+    path: PathOverride[];
     models: any[];
+}
+
+export interface PathOverride {
+    path: string;
+    status: number;
 }
 
 export interface Pricing {

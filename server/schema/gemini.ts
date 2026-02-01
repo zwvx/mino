@@ -23,6 +23,17 @@ export class GeminiRequest extends SchemaRequest {
         return null
     }
 
+    override getMaxTokens(bodyBuffer: ArrayBuffer): number | null {
+        try {
+            const decoder = new TextDecoder()
+            const body = decoder.decode(bodyBuffer)
+            const json = JSON.parse(body)
+            return json.generationConfig?.maxOutputTokens ?? null
+        } catch {
+            return null
+        }
+    }
+
     override getRequestToken(bodyBuffer: ArrayBuffer) {
         try {
             const decoder = new TextDecoder()

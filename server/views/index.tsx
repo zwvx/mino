@@ -24,7 +24,7 @@ export const Index = async () => {
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
                 <style>{styles}</style>
             </head>
-            <body class="bg-[#111] text-[#c0c0c0] font-serif p-6 max-w-2xl text-md">
+            <body class="bg-[#111] text-[#c0c0c0] font-serif p-6 max-w-2xl text-md relative">
                 <h1 class="text-lg font-bold mb-4 tracking-tight">mino (wip)</h1>
 
                 <div class="space-y-1">
@@ -81,6 +81,7 @@ export const Index = async () => {
                         </div>
                     </div>
                 </div>
+                <canvas id="cursor-canvas" class="absolute top-0 left-0 pointer-events-none z-50"></canvas>
                 <script>{client}</script>
             </body>
         </html>
