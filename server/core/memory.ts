@@ -361,8 +361,15 @@ export class MinoMemory {
         }
 
         const saturatedKeys = this.getSaturatedKeyIds(providerKeysId, sameKeyConcurrency)
+        console.debug(`[allocateKey] provider=${provider.id}, keysId=${providerKeysId}, sameKeyConcurrency=${sameKeyConcurrency}, saturatedKeys=[${saturatedKeys.map(k => `${k.slice(0, 8)}...(${this.getKeyConcurrency(k)})`).join(', ')}]`)
         const keyData = await Mino.Database.getRandomProviderKey(providerKeysId, saturatedKeys)
         if (!keyData) {
+            console.error(`[allocateKey] all keys saturated. KeyConcurrency dump:`)
+            for (const [keyId, data] of this.KeyConcurrency) {
+                if (data.providerKeysId === providerKeysId) {
+                    console.error(`  - ${keyId.slice(0, 12)}...: count=${data.count}`)
+                }
+            }
             throw new Error(`no key available for <${provider.id}>`)
         }
 

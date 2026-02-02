@@ -379,6 +379,14 @@ export async function startServer() {
                 const maxRetryCount = Mino.Config.server.max_retry_count
 
                 while (retryCount < maxRetryCount) {
+                    if (allocatedKeyId) {
+                        Mino.Memory.decrKeyConcurrency(allocatedKeyId)
+                        if (registeredRequestId) {
+                            Mino.Memory.clearRequestAllocatedKey(identityKey, registeredRequestId)
+                        }
+                        allocatedKeyId = null
+                    }
+
                     providerKey = await Mino.Memory.allocateKey(identityKey, provider)
                     allocatedKeyId = providerKey.key
                     if (registeredRequestId) {
