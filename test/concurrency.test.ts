@@ -8,36 +8,47 @@ describe("identity session", () => {
         memory = new MinoMemory()
     })
 
-    test("incrActiveRequests should initialize to 1", () => {
+    test("tryRegisterRequest should register and return request ID", () => {
         const identity = "user1"
-        memory.incrActiveRequests(identity)
+        const requestId = memory.tryRegisterRequest(identity, 5)
+        expect(requestId).not.toBeNull()
         expect(memory.getActiveRequests(identity)).toBe(1)
     })
 
-    test("incrActiveRequests should increment existing value", () => {
+    test("tryRegisterRequest should increment existing value", () => {
         const identity = "user2"
-        memory.incrActiveRequests(identity)
-        memory.incrActiveRequests(identity)
+        memory.tryRegisterRequest(identity, 5)
+        memory.tryRegisterRequest(identity, 5)
         expect(memory.getActiveRequests(identity)).toBe(2)
     })
 
-    test("decrActiveRequests should decrement existing value", () => {
+    test("unregisterRequest should decrement existing value", () => {
         const identity = "user3"
-        memory.incrActiveRequests(identity)
-        memory.incrActiveRequests(identity)
-        memory.decrActiveRequests(identity)
+        const req1 = memory.tryRegisterRequest(identity, 5)
+        const req2 = memory.tryRegisterRequest(identity, 5)
+        expect(req1).not.toBeNull()
+        expect(req2).not.toBeNull()
+        memory.unregisterRequest(identity, req1!)
         expect(memory.getActiveRequests(identity)).toBe(1)
     })
 
-    test("decrActiveRequests should not go below 0", () => {
+    test("tryRegisterRequest should respect concurrency limit", () => {
         const identity = "user4"
-        memory.decrActiveRequests(identity)
-        expect(memory.getActiveRequests(identity)).toBe(0)
+        const limit = 2
+        const req1 = memory.tryRegisterRequest(identity, limit)
+        const req2 = memory.tryRegisterRequest(identity, limit)
+        const req3 = memory.tryRegisterRequest(identity, limit)
 
-        memory.incrActiveRequests(identity)
-        memory.decrActiveRequests(identity)
-        memory.decrActiveRequests(identity)
-        expect(memory.getActiveRequests(identity)).toBe(0)
+        expect(req1).not.toBeNull()
+        expect(req2).not.toBeNull()
+        expect(req3).toBeNull() // Should fail at limit
+        expect(memory.getActiveRequests(identity)).toBe(2)
+    })
+
+    test("unregisterRequest on nonexistent session returns 0", () => {
+        const identity = "unknown"
+        const result = memory.unregisterRequest(identity, "fake-request-id")
+        expect(result).toBe(0)
     })
 
     test("cooldown should be settable and retrievable", () => {
@@ -50,5 +61,22 @@ describe("identity session", () => {
 
     test("getCooldown returns 0 for unknown identity", () => {
         expect(memory.getCooldown("unknown", "default")).toBe(0)
+    })
+
+    test("setRequestAllocatedKey and clearRequestAllocatedKey work correctly", () => {
+        const identity = "user6"
+        const requestId = memory.tryRegisterRequest(identity, 5)
+        expect(requestId).not.toBeNull()
+
+        memory.setRequestAllocatedKey(identity, requestId!, "test-key-123")
+
+        const session = memory.getSession(identity)
+        expect(session).not.toBeUndefined()
+        const request = session!.activeRequests.get(requestId!)
+        expect(request).not.toBeUndefined()
+        expect(request!.allocatedKeyId).toBe("test-key-123")
+
+        memory.clearRequestAllocatedKey(identity, requestId!)
+        expect(request!.allocatedKeyId).toBeNull()
     })
 })

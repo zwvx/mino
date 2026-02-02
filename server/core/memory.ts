@@ -8,8 +8,14 @@ interface AllocatedKey {
     usageCount: number
 }
 
+interface ActiveRequest {
+    requestId: string
+    startedAt: number
+    allocatedKeyId: string | null
+}
+
 interface IdentitySession {
-    activeRequests: number
+    activeRequests: Map<string, ActiveRequest>
     cooldowns: Map<string, number>
     allocatedKeys: Map<string, AllocatedKey>
     lastActivity: number
@@ -191,12 +197,32 @@ export class MinoMemory {
 
     private cleanupStaleSessions() {
         const now = Date.now()
-        const staleThreshold = Mino.Config.memory.stale_session_threshold_ms
+        const staleSessionThreshold = Mino.Config.memory.stale_session_threshold_ms
+        const staleRequestThreshold = Mino.Config.memory.stale_request_threshold_ms
+
+        let forcedCleanups = 0
 
         for (const [identity, session] of this.Sessions) {
-            if (now - session.lastActivity > staleThreshold && session.activeRequests === 0) {
+            for (const [requestId, request] of session.activeRequests) {
+                if (now - request.startedAt > staleRequestThreshold) {
+                    console.warn(`\x1b[33m[${identity}] force cleaning stale request ${requestId} (started ${Math.round((now - request.startedAt) / 1000)}s ago)\x1b[0m`)
+
+                    if (request.allocatedKeyId) {
+                        this.decrKeyConcurrency(request.allocatedKeyId)
+                    }
+
+                    session.activeRequests.delete(requestId)
+                    forcedCleanups++
+                }
+            }
+
+            if (now - session.lastActivity > staleSessionThreshold && session.activeRequests.size === 0) {
                 this.Sessions.delete(identity)
             }
+        }
+
+        if (forcedCleanups > 0) {
+            console.warn(`\x1b[33m[memory] force cleaned ${forcedCleanups} stale request(s)\x1b[0m`)
         }
     }
 
@@ -208,7 +234,7 @@ export class MinoMemory {
         let session = this.Sessions.get(identity)
         if (!session) {
             session = {
-                activeRequests: 0,
+                activeRequests: new Map(),
                 cooldowns: new Map(),
                 allocatedKeys: new Map(),
                 lastActivity: Date.now()
@@ -220,29 +246,42 @@ export class MinoMemory {
     }
 
     getActiveRequests(identity: string): number {
-        return this.getSession(identity)?.activeRequests || 0
+        return this.getSession(identity)?.activeRequests.size || 0
     }
 
-    tryIncrActiveRequests(identity: string, limit: number): boolean {
+    tryRegisterRequest(identity: string, limit: number): string | null {
         const session = this.getOrCreateSession(identity)
-        if (session.activeRequests >= limit) {
-            return false
+        if (session.activeRequests.size >= limit) {
+            return null
         }
-        session.activeRequests++
-        return true
+        const requestId = crypto.randomUUID()
+        session.activeRequests.set(requestId, {
+            requestId,
+            startedAt: Date.now(),
+            allocatedKeyId: null
+        })
+        return requestId
     }
 
-    incrActiveRequests(identity: string): number {
-        const session = this.getOrCreateSession(identity)
-        session.activeRequests++
-        return session.activeRequests
+    setRequestAllocatedKey(identity: string, requestId: string, keyId: string): void {
+        const request = this.getSession(identity)?.activeRequests.get(requestId)
+        if (request) {
+            request.allocatedKeyId = keyId
+        }
     }
 
-    decrActiveRequests(identity: string): number {
+    clearRequestAllocatedKey(identity: string, requestId: string): void {
+        const request = this.getSession(identity)?.activeRequests.get(requestId)
+        if (request) {
+            request.allocatedKeyId = null
+        }
+    }
+
+    unregisterRequest(identity: string, requestId: string): number {
         const session = this.getSession(identity)
         if (!session) return 0
-        if (session.activeRequests > 0) session.activeRequests--
-        return session.activeRequests
+        session.activeRequests.delete(requestId)
+        return session.activeRequests.size
     }
 
     getCooldown(identity: string, type: string = 'default'): number {
@@ -353,7 +392,7 @@ export class MinoMemory {
     async getTotalActiveRequests() {
         let count = 0
         for await (const session of this.Sessions.values()) {
-            count += session.activeRequests
+            count += session.activeRequests.size
         }
         return count
     }

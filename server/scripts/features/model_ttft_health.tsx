@@ -4,7 +4,7 @@ import schemas, { type SchemaType } from '@/server/schema'
 
 interface TTFTPoint {
     ttft: number | null
-    status: 'ok' | 'slow' | 'error'
+    status: 'ok' | 'slow' | 'error' | 'timeout'
     checkedAt: number
 }
 
@@ -148,6 +148,11 @@ class ModelTTFTHealth extends ProviderFeature {
                 checkedAt: Date.now()
             }
         } catch (err) {
+            if (err instanceof DOMException && err.name === 'TimeoutError') {
+                console.warn(`[${this.id}] [${this.provider.id}] timeout testing model ${modelId}`)
+                return { ttft: null, status: 'timeout', checkedAt: Date.now() }
+            }
+
             console.error(`[${this.id}] [${this.provider.id}] error testing model ${modelId}:`, err)
             return { ttft: null, status: 'error', checkedAt: Date.now() }
         }
@@ -228,13 +233,15 @@ class ModelTTFTHealth extends ProviderFeature {
         if (!status) return 'text-[#555]'
         return status === 'ok' ? 'text-[#60d860]'
             : status === 'slow' ? 'text-[#d8b060]'
-                : 'text-[#d86060]'
+                : status === 'timeout' ? 'text-[#d8b060]'
+                    : 'text-[#d86060]'
     }
 
     private statusBg(status: TTFTPoint['status']): string {
         return status === 'ok' ? 'bg-[#60d860]'
             : status === 'slow' ? 'bg-[#d8b060]'
-                : 'bg-[#d86060]'
+                : status === 'timeout' ? 'bg-[#d8b060]'
+                    : 'bg-[#d86060]'
     }
 
     private timeAgo(ts: number): string {

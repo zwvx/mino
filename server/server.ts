@@ -198,6 +198,7 @@ export async function startServer() {
             let cooldownType: string = 'default'
 
             let concurrencyIncremented = false
+            let registeredRequestId: string | null = null
             let allocatedKeyId: string | null = null
             let shouldDeferCleanup = false
             let skipCooldownUpdate = false
@@ -205,7 +206,7 @@ export async function startServer() {
 
             const cleanup = async () => {
                 const activeBeforeCleanup = Mino.Memory.getActiveRequests(identityKey)
-                console.debug(`${cyanTx}[${identityKey}] cleanup called. cleanupCalled=${cleanupCalled}, concurrencyIncremented=${concurrencyIncremented}, activeRequests=${activeBeforeCleanup}${colorReset}`)
+                console.debug(`${cyanTx}[${identityKey}] cleanup called. cleanupCalled=${cleanupCalled}, registeredRequestId=${registeredRequestId}, activeRequests=${activeBeforeCleanup}${colorReset}`)
 
                 if (cleanupCalled) {
                     console.debug(`${yellowTx}[${identityKey}] cleanup already called, skipping${colorReset}`)
@@ -213,16 +214,22 @@ export async function startServer() {
                 }
                 cleanupCalled = true
 
-                if (concurrencyIncremented) {
-                    const afterDecr = Mino.Memory.decrActiveRequests(identityKey)
-                    console.debug(`${cyanTx}[${identityKey}] decremented activeRequests: ${activeBeforeCleanup} -> ${afterDecr}${colorReset}`)
-                } else {
-                    console.debug(`${yellowTx}[${identityKey}] concurrencyIncremented=false, no decrement${colorReset}`)
-                }
+                if (registeredRequestId) {
+                    if (allocatedKeyId) {
+                        Mino.Memory.clearRequestAllocatedKey(identityKey, registeredRequestId)
+                        Mino.Memory.decrKeyConcurrency(allocatedKeyId)
+                        allocatedKeyId = null
+                    }
 
-                if (allocatedKeyId) {
-                    Mino.Memory.decrKeyConcurrency(allocatedKeyId)
-                    allocatedKeyId = null
+                    const afterUnregister = Mino.Memory.unregisterRequest(identityKey, registeredRequestId)
+                    console.debug(`${cyanTx}[${identityKey}] unregistered request ${registeredRequestId}, activeRequests: ${activeBeforeCleanup} -> ${afterUnregister}${colorReset}`)
+                    registeredRequestId = null
+                } else {
+                    console.debug(`${yellowTx}[${identityKey}] no registered request, skipping unregister${colorReset}`)
+                    if (allocatedKeyId) {
+                        Mino.Memory.decrKeyConcurrency(allocatedKeyId)
+                        allocatedKeyId = null
+                    }
                 }
 
                 if (!skipCooldownUpdate) {
@@ -290,14 +297,15 @@ export async function startServer() {
                 }
 
                 if (identity.user?.tier !== 'ADMIN') {
-                    if (!Mino.Memory.tryIncrActiveRequests(identityKey, provider.concurrency.identity)) {
+                    registeredRequestId = Mino.Memory.tryRegisterRequest(identityKey, provider.concurrency.identity)
+                    if (!registeredRequestId) {
                         const activeRequests = Mino.Memory.getActiveRequests(identityKey)
                         console.log(`${yellowTx}[${identityKey}]${colorReset} concurrency limit reached (${activeRequests}/${provider.concurrency.identity})`)
                         return status(429, schema.errorObject(`Identity concurrency exceeded. Maximum ${provider.concurrency.identity} requests at a time.`, 'invalid_request_error', 'concurrency_limit_exceeded'))
                     }
                     concurrencyIncremented = true
                     const activeAfter = Mino.Memory.getActiveRequests(identityKey)
-                    console.debug(`${cyanTx}[${identityKey}] concurrency incremented, activeRequests now: ${activeAfter}${colorReset}`)
+                    console.debug(`${cyanTx}[${identityKey}] registered request ${registeredRequestId}, activeRequests now: ${activeAfter}${colorReset}`)
                 }
 
                 if (identity.user?.tier !== 'ADMIN') {
@@ -367,6 +375,9 @@ export async function startServer() {
                 while (retryCount < maxRetryCount) {
                     providerKey = await Mino.Memory.allocateKey(identityKey, provider)
                     allocatedKeyId = providerKey.key
+                    if (registeredRequestId) {
+                        Mino.Memory.setRequestAllocatedKey(identityKey, registeredRequestId, providerKey.key)
+                    }
                     schema.setProviderKey(providerKey.key)
 
                     const endpointType = providerKey.metadata?.endpoint || 'default'
@@ -437,6 +448,9 @@ export async function startServer() {
                         if (invalidateKey) {
                             Mino.Memory.invalidateKey(identityKey, provider.keys_id)
                             Mino.Memory.decrKeyConcurrency(providerKey.key)
+                            if (registeredRequestId) {
+                                Mino.Memory.clearRequestAllocatedKey(identityKey, registeredRequestId)
+                            }
                             allocatedKeyId = null
                         } else {
                             Mino.Memory.incrKeyUsage(identityKey, provider.keys_id)
@@ -474,6 +488,9 @@ export async function startServer() {
                                     if (validationResult.retryable) {
                                         Mino.Memory.invalidateKey(identityKey, provider.keys_id)
                                         Mino.Memory.decrKeyConcurrency(providerKey.key)
+                                        if (registeredRequestId) {
+                                            Mino.Memory.clearRequestAllocatedKey(identityKey, registeredRequestId)
+                                        }
                                         allocatedKeyId = null
                                         retryCount++
                                         continue
@@ -498,6 +515,9 @@ export async function startServer() {
                                 }), (res) => handleResponseComplete(intercepted.firstChunk + res))
                             } else {
                                 Mino.Memory.decrKeyConcurrency(providerKey.key)
+                                if (registeredRequestId) {
+                                    Mino.Memory.clearRequestAllocatedKey(identityKey, registeredRequestId)
+                                }
                                 allocatedKeyId = null
                                 retryCount++
                                 continue
