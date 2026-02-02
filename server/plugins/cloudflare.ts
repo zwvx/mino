@@ -13,7 +13,7 @@ export const ip = (app: Elysia) =>
         if (ip) {
             if (await Mino.Memory.isSubnetBlocked(ip)) {
                 console.warn(`known blocked ip range trying to access mino:`, ip)
-                return status(403, 'Your IP range is blocked, either due to a known public cloud server provider or an intentional ban.')
+                return status(403, 'Your IP range is blocked, likely a cloud provider or an intentional ban.')
             }
         }
 
