@@ -1,4 +1,5 @@
 import { Html } from '@elysiajs/html'
+import { marked } from 'marked'
 
 export const Index = async () => {
     const styles = await Mino.buildStyles()
@@ -12,6 +13,12 @@ export const Index = async () => {
         console.error('failed to build client script')
         return
     }
+
+    let motdHtml = ''
+    try {
+        const motdContent = await Bun.file('data/motd.md').text()
+        motdHtml = await marked.parse(motdContent, { async: true })
+    } catch (e) { }
 
     const providers = Mino.Memory.Providers
     const base = Mino.Config.site.base_url
@@ -38,6 +45,12 @@ export const Index = async () => {
                             <span id="total-tokens" class="text-[#ccc]">...</span>
                         </div>
                     </div>
+
+                    {motdHtml && (
+                        <div class="mb-6 pl-3 border-l-2 border-[#333] font-mono text-sm text-[#888] [&_p]:m-0 [&_strong]:text-[#ccc] [&_a]:text-[#6086d8] [&_a:hover]:text-[#8aa6e8]">
+                            {motdHtml as 'safe'}
+                        </div>
+                    )}
 
                     {Object.entries(providers).map(([name, data]: [string, any]) => (
                         <details class="group">
