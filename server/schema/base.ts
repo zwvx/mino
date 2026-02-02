@@ -93,4 +93,15 @@ export class SchemaRequest {
             object: 'list'
         }
     }
+
+    rewriteModelInBody(bodyBuffer: ArrayBuffer, newModelId: string): ArrayBuffer {
+        return bodyBuffer
+    }
+
+    parseModelsResponse(data: Record<string, any>): string[] {
+        if (data.data && Array.isArray(data.data)) {
+            return data.data.map((m: { id: string }) => m.id)
+        }
+        return []
+    }
 }

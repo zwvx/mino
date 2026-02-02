@@ -20,6 +20,7 @@ export interface Provider {
     concurrency: Concurrency;
     override: Override;
     filter_models: string[];
+    remap_models?: Record<string, string>;
     scripts: Scripts;
     cooldown: Cooldown;
     page?: Page;

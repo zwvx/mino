@@ -23,6 +23,8 @@ export class MinoServices {
         const schema = new SchemaClass(dummyRequest)
         schema.setProviderKey(apiKey)
 
+        // console.debug(`fetching models for <${provider.id}>: ${modelsEndpoint}`, schema.request.headers)
+
         const response = await fetch(modelsEndpoint, {
             method: 'GET',
             headers: schema.request.headers
@@ -32,16 +34,25 @@ export class MinoServices {
             throw new Error(`failed to fetch models for <${provider.id}>: ${response.status} ${response.statusText}`)
         }
 
-        const data = await response.json() as { data?: { id: string }[] }
-        if (!data.data || !Array.isArray(data.data)) {
+        const data = await response.json() as Record<string, any>
+
+        let models = schema.parseModelsResponse(data)
+        if (models.length === 0) {
             throw new Error(`invalid models response for <${provider.id}>`)
         }
-
-        let models = data.data.map((m) => m.id)
 
         if (provider.filter_models && Array.isArray(provider.filter_models) && provider.filter_models.length > 0) {
             models = models.filter((id) => provider.filter_models.includes(id))
         }
+
+        if (provider.remap_models) {
+            const reverseMap = Object.fromEntries(
+                Object.entries(provider.remap_models).map(([client, upstream]) => [upstream, client])
+            )
+            models = models.map((id) => reverseMap[id] ?? id)
+        }
+
+        console.debug(models)
 
         return models
     }

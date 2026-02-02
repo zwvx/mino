@@ -61,6 +61,12 @@
                         "type": "string"
                     }
                 },
+                "remap_models": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "scripts": {
                     "$ref": "#/definitions/Scripts"
                 },

@@ -2,12 +2,15 @@ import { GoogleGenAI } from '@google/genai'
 
 if (import.meta.main) {
     const url = Bun.argv[2]!
+    const model = Bun.argv[3]!
+    const key = Bun.argv[4]!
+
     const ai = new GoogleGenAI({
-        apiKey: 'sk-test'
+        apiKey: key
     })
 
-    await ai.models.generateContent({
-        model: 'test-model',
+    const stream = await ai.models.generateContentStream({
+        model: model,
         contents: [{
             role: 'user',
             parts: [{ text: 'hello?' }]
@@ -18,4 +21,8 @@ if (import.meta.main) {
             }
         }
     })
+
+    for await (const chunk of stream) {
+        process.stdout.write(chunk.text ?? '')
+    }
 }

@@ -324,7 +324,7 @@ export async function startServer() {
                 schema.stripHeaders()
                 schema.overrideHeaders(provider.override.headers)
 
-                const bodyBuffer = schema.request.body ? await schema.request.arrayBuffer() : null
+                let bodyBuffer = schema.request.body ? await schema.request.arrayBuffer() : null
 
                 if (isChatCompletion && bodyBuffer) {
                     const modelId = schema.getModelId(bodyBuffer)
@@ -333,6 +333,12 @@ export async function startServer() {
                         if (models && !models.includes(modelId) && identity.user?.tier !== 'ADMIN') {
                             console.warn(`[${identityKey}] tried to use model "${modelId}" but it is not allowed or not found.`)
                             return status(400, schema.errorObject(`Model "${modelId}" is not allowed or not found. ${models ? `Allowed models: ${models.map(model => `"${model}"`).join(', ')}` : ''}`, 'invalid_request_error', 'model_not_found'))
+                        }
+
+                        const upstreamModelId = provider.remap_models?.[modelId] ?? modelId
+                        if (upstreamModelId !== modelId) {
+                            bodyBuffer = schema.rewriteModelInBody(bodyBuffer, upstreamModelId)
+                            console.debug(`${cyanTx}[${identityKey}] remapped model "${modelId}" to "${upstreamModelId}"${colorReset}`)
                         }
                     } else {
                         return status(400, schema.errorObject('Model not specified.', 'invalid_request_error', 'model_not_specified'))

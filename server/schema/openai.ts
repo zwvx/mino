@@ -115,4 +115,16 @@ export class OpenAIRequest extends SchemaRequest {
             owned_by: 'mino'
         }
     }
+
+    override rewriteModelInBody(bodyBuffer: ArrayBuffer, newModelId: string): ArrayBuffer {
+        try {
+            const decoder = new TextDecoder()
+            const body = decoder.decode(bodyBuffer)
+            const json = JSON.parse(body)
+            json.model = newModelId
+            return new TextEncoder().encode(JSON.stringify(json)).buffer as ArrayBuffer
+        } catch {
+            return bodyBuffer
+        }
+    }
 }

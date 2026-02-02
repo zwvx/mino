@@ -126,4 +126,9 @@ export class AnthropicRequest extends SchemaRequest {
             has_more: false
         }
     }
+
+    override rewriteModelInBody(bodyBuffer: ArrayBuffer, newModelId: string): ArrayBuffer {
+        // todo.
+        return bodyBuffer
+    }
 }
