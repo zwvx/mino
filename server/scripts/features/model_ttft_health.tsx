@@ -207,7 +207,7 @@ class ModelTTFTHealth extends ProviderFeature {
                                 <div class="flex justify-between font-mono text-[11px] items-center leading-none">
                                     <span class="text-[#888] truncate">{m.id}</span>
                                     <span class={this.statusColor(latest?.status)}>
-                                        {latest?.ttft !== null ? `${latest?.ttft}ms` : (latest?.status === 'error' ? 'err' : '-')}
+                                        {latest?.ttft !== null ? `${latest?.ttft}ms` : (latest?.status === 'error' ? 'err' : latest?.status === 'timeout' ? 'timeout' : '-')}
                                     </span>
                                 </div>
                                 <div class="flex gap-[3px]">
@@ -233,14 +233,14 @@ class ModelTTFTHealth extends ProviderFeature {
         if (!status) return 'text-[#555]'
         return status === 'ok' ? 'text-[#60d860]'
             : status === 'slow' ? 'text-[#d8b060]'
-                : status === 'timeout' ? 'text-[#d8b060]'
+                : status === 'timeout' ? 'text-[#d86060]'
                     : 'text-[#d86060]'
     }
 
     private statusBg(status: TTFTPoint['status']): string {
         return status === 'ok' ? 'bg-[#60d860]'
             : status === 'slow' ? 'bg-[#d8b060]'
-                : status === 'timeout' ? 'bg-[#d8b060]'
+                : status === 'timeout' ? 'bg-[#d86060]'
                     : 'bg-[#d86060]'
     }
 
