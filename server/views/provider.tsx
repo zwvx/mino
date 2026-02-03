@@ -1,4 +1,5 @@
 import { Html } from '@elysiajs/html'
+import { marked } from 'marked'
 import type { Provider } from '@/types/provider'
 import { loadFeature } from '@/server/scripts/features'
 
@@ -11,6 +12,13 @@ export const ProviderView = async ({ provider }: Props) => {
     if (!styles) return
 
     const featureElements: JSX.Element[] = []
+
+    let messageHtml = ''
+    if (provider.page?.message) {
+        try {
+            messageHtml = await marked.parse(provider.page.message, { async: true, breaks: true })
+        } catch (e) { }
+    }
 
     if (provider.page?.features) {
         for (const cfg of provider.page.features) {
@@ -38,8 +46,10 @@ export const ProviderView = async ({ provider }: Props) => {
                 <style>{styles}</style>
             </head>
             <body class="bg-[#111] text-[#c0c0c0] font-serif p-6 max-w-2xl text-md">
-                {provider.page?.message && (
-                    <p class="text-[#888] text-sm mb-4">{provider.page.message}</p>
+                {messageHtml && (
+                    <div class="text-[#888] text-sm mb-4 [&_p]:m-0 [&_p]:mb-1 [&:last-child]:mb-0 [&_strong]:text-[#ccc] [&_a]:text-[#6086d8] [&_a:hover]:text-[#8aa6e8]">
+                        {messageHtml as 'safe'}
+                    </div>
                 )}
 
                 {featureElements}

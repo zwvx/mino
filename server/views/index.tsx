@@ -17,7 +17,7 @@ export const Index = async () => {
     let motdHtml = ''
     try {
         const motdContent = await Bun.file('data/motd.md').text()
-        motdHtml = await marked.parse(motdContent, { async: true })
+        motdHtml = await marked.parse(motdContent, { async: true, breaks: true })
     } catch (e) { }
 
     const providers = Mino.Memory.Providers
