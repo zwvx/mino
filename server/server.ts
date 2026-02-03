@@ -454,7 +454,7 @@ export async function startServer() {
                             Mino.Memory.incrKeyUsage(identityKey, provider.keys_id)
 
                             const errorBody = await response.text()
-                            console.log(`${redTx}[${identityKey}] [${provider.id}] non-retryable error ${statusCode}${colorReset}`)
+                            console.log(`${redTx}[${identityKey}] [${provider.id}] non-retryable error ${statusCode}${colorReset}`, errorBody)
 
                             const isHtml = response.headers.get('content-type')?.includes('text/html') || errorBody.trim().startsWith('<')
                             if (isHtml) {
