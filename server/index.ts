@@ -11,6 +11,8 @@ import * as config from '@/data/config.yml'
 
 export class Mino {
     readonly Session = Math.random().toString(36).slice(2)
+    readonly Uptime = Date.now()
+
     readonly isProduction = Bun.env.NODE_ENV === 'production'
     readonly isDebug = Bun.env.DEBUG === 'true'
     readonly Config = config

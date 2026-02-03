@@ -92,6 +92,10 @@ export const Index = async () => {
                             <span class="w-9 shrink-0 text-[#444] select-none">source</span>
                             <a href="https://github.com/zwvx/mino" target="_blank" rel="noopener noreferrer" class="hover:text-[#888] transition-colors">github.com/zwvx/mino</a>
                         </div>
+                        <div class="flex gap-4">
+                            <span class="w-9 shrink-0 text-[#444] select-none">uptime</span>
+                            <span id="uptime" data-start={Mino.Uptime.toString()} data-now={Date.now().toString()} title={new Date(Mino.Uptime).toLocaleString()} class="cursor-help hover:text-[#888] transition-colors">-</span>
+                        </div>
                     </div>
                 </div>
                 <canvas id="cursor-canvas" class="fixed top-0 left-0 w-screen h-screen pointer-events-none z-50"></canvas>

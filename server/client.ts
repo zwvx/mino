@@ -1,5 +1,18 @@
 import { RWS } from './utils/rws'
 
+function formatUptime(ms: number): string {
+    const s = Math.floor(ms / 1000)
+    const days = Math.floor(s / 86400)
+    const hours = Math.floor(s / 3600) % 24
+    const minutes = Math.floor(s / 60) % 60
+    const seconds = s % 60
+
+    if (days > 0) return `${days}d ${hours}h ${minutes}m ${seconds}s`
+    if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`
+    if (minutes > 0) return `${minutes}m ${seconds}s`
+    return `${seconds}s`
+}
+
 class Cursor {
     private canvas: HTMLCanvasElement | null = null
     private ctx: CanvasRenderingContext2D | null = null
@@ -234,9 +247,25 @@ async function indexScript() {
     const ws = new RWS(`${wsProto}//${window.location.host}/mino`)
     const cursor = new Cursor(ws)
 
+    const uptimeEl = document.getElementById('uptime')
+    const serverStart = Number(uptimeEl?.dataset.start) || 0
+    const serverNow = Number(uptimeEl?.dataset.now) || Date.now()
+    const clientNow = Date.now()
+    const offset = clientNow - serverNow
+
     const state = {
-        session: null as string | null
+        session: null as string | null,
     }
+
+    const updateUptime = () => {
+        const now = Date.now()
+        const currentServerTime = now - offset
+        const uptime = Math.max(0, currentServerTime - serverStart)
+        if (uptimeEl) uptimeEl.textContent = formatUptime(uptime)
+    }
+
+    updateUptime()
+    setInterval(updateUptime, 1000)
 
     const wsMethods = {
         'init': async ({ session }: any) => {
