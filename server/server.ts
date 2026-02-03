@@ -22,6 +22,7 @@ import { ProviderView } from './views/provider'
 import { proxyResponseStream, interceptFirstChunk } from './utils/stream'
 import { parseDuration, msToHuman } from '@/utils/time'
 import type { ResponseValidator } from '@/modules/scripts/response_validation/types'
+import type { ProviderPreflight } from '@/modules/scripts/request_preflight/base'
 
 export function wsObject(type: string, data: Record<string, any>) {
     return { type, data }
@@ -204,15 +205,11 @@ export async function startServer() {
             let skipCooldownUpdate = false
             let cleanupCalled = false
 
-            const cleanup = async () => {
-                const activeBeforeCleanup = Mino.Memory.getActiveRequests(identityKey)
-                console.debug(`${cyanTx}[${identityKey}] cleanup called. cleanupCalled=${cleanupCalled}, registeredRequestId=${registeredRequestId}, activeRequests=${activeBeforeCleanup}${colorReset}`)
-
-                if (cleanupCalled) {
-                    console.debug(`${yellowTx}[${identityKey}] cleanup already called, skipping${colorReset}`)
-                    return
-                }
+            const unregisterRequestNow = () => {
+                if (cleanupCalled) return
                 cleanupCalled = true
+
+                const activeBeforeCleanup = Mino.Memory.getActiveRequests(identityKey)
 
                 if (registeredRequestId) {
                     if (allocatedKeyId) {
@@ -225,12 +222,15 @@ export async function startServer() {
                     console.debug(`${cyanTx}[${identityKey}] unregistered request ${registeredRequestId}, activeRequests: ${activeBeforeCleanup} -> ${afterUnregister}${colorReset}`)
                     registeredRequestId = null
                 } else {
-                    console.debug(`${yellowTx}[${identityKey}] no registered request, skipping unregister${colorReset}`)
                     if (allocatedKeyId) {
                         Mino.Memory.decrKeyConcurrency(allocatedKeyId)
                         allocatedKeyId = null
                     }
                 }
+            }
+
+            const cleanup = async () => {
+                unregisterRequestNow()
 
                 if (!skipCooldownUpdate) {
                     try {
@@ -319,12 +319,38 @@ export async function startServer() {
                     }
                 }
 
-                // todo: preflight
-
                 schema.stripHeaders()
                 schema.overrideHeaders(provider.override.headers)
 
-                let bodyBuffer = schema.request.body ? await schema.request.arrayBuffer() : null
+                let bodyBuffer: ArrayBuffer | null = null
+                if (schema.request.body) {
+                    try {
+                        bodyBuffer = await Promise.race([
+                            schema.request.arrayBuffer(),
+                            new Promise<ArrayBuffer>((_, reject) => setTimeout(() => reject(new Error('Request body timeout')), 60000))
+                        ])
+                    } catch (err) {
+                        console.warn(`${yellowTx}[${identityKey}] failed to read request body:${colorReset}`, err)
+                        return status(408, schema.errorObject('Request body timeout', 'timeout'))
+                    }
+                }
+
+                if (provider.scripts?.preflight && bodyBuffer) {
+                    try {
+                        const mod = await import(`@/modules/scripts/request_preflight/${provider.scripts.preflight}`)
+                        const PreflightClass = mod.default as new () => ProviderPreflight
+                        const preflight = new PreflightClass()
+
+                        if (preflight.init) {
+                            await preflight.init()
+                        }
+
+                        bodyBuffer = preflight.processBuffer(bodyBuffer)
+                        console.debug(`${cyanTx}[${identityKey}] applied preflight: ${preflight.name}${colorReset}`)
+                    } catch (err) {
+                        console.warn(`${yellowTx}[${identityKey}] preflight script error:${colorReset}`, err)
+                    }
+                }
 
                 if (isChatCompletion && bodyBuffer) {
                     const modelId = schema.getModelId(bodyBuffer)
@@ -440,7 +466,7 @@ export async function startServer() {
                                 status: response.status,
                                 statusText: response.statusText,
                                 headers: response.headers
-                            }), cleanup)
+                            }), cleanup, { signal: request.signal })
                         }
 
                         if ([401, 403].includes(statusCode)) {
@@ -526,7 +552,7 @@ export async function startServer() {
                                     status: response.status,
                                     statusText: response.statusText,
                                     headers: respHeaders
-                                }), (res) => handleResponseComplete(intercepted.firstChunk + res))
+                                }), (res) => handleResponseComplete(intercepted.firstChunk + res), { signal: request.signal })
                             } else {
                                 Mino.Memory.decrKeyConcurrency(providerKey.key)
                                 if (registeredRequestId) {
@@ -546,7 +572,7 @@ export async function startServer() {
                         status: response.status,
                         statusText: response.statusText,
                         headers: respHeaders
-                    }), handleResponseComplete)
+                    }), handleResponseComplete, { signal: request.signal })
                 }
 
                 console.log(`${redBgWhiteTx}[${identityKey}]${colorReset} ${redTx}max retries exceeded (${maxRetryCount}), all keys unavailable${colorReset}`)
