@@ -32,7 +32,7 @@ export const Index = async () => {
                 <style>{styles}</style>
             </head>
             <body class="bg-[#111] text-[#c0c0c0] font-serif p-6 max-w-2xl text-md relative">
-                <h1 class="text-lg font-bold mb-4 tracking-tight">mino (wip)</h1>
+                <h1 class="text-lg font-bold mb-4 tracking-tight">mino</h1>
 
                 <div class="space-y-1">
                     <div class="mb-6 font-mono text-sm text-[#888] space-y-0.5">
@@ -46,11 +46,9 @@ export const Index = async () => {
                         </div>
                     </div>
 
-                    {motdHtml && (
-                        <div class="mb-6 pl-3 border-l-2 border-[#333] font-mono text-sm text-[#888] [&_p]:m-0 [&_strong]:text-[#ccc] [&_a]:text-[#6086d8] [&_a:hover]:text-[#8aa6e8]">
-                            {motdHtml as 'safe'}
-                        </div>
-                    )}
+                    <div id="motd-content" class={`mb-6 pl-3 border-l-2 border-[#333] font-mono text-sm text-[#888] [&_p]:m-0 [&_strong]:text-[#ccc] [&_a]:text-[#6086d8] [&_a:hover]:text-[#8aa6e8] ${motdHtml ? '' : 'hidden'}`}>
+                        {motdHtml as 'safe'}
+                    </div>
 
                     {Object.entries(providers).map(([name, data]: [string, any]) => (
                         <details class="group">

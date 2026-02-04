@@ -3,6 +3,7 @@ import { performance as perf } from 'perf_hooks'
 
 import { cors } from '@elysiajs/cors'
 import { html } from '@elysiajs/html'
+import { marked } from 'marked'
 
 import { ip } from './plugins/cloudflare'
 import { identity } from './plugins/identity'
@@ -80,6 +81,38 @@ class CursorData {
             clientId,
             ...data
         }))
+    }
+}
+
+class MotdManager {
+    static currentHtml: string | null = null
+    static currentCrc: number = 0
+    static lastCheck: number = 0
+
+    static async init() {
+        await this.check(true)
+    }
+
+    static async check(force = false) {
+        try {
+            const file = Bun.file('data/motd.md')
+            if (!await file.exists()) return
+
+            const buffer = await file.arrayBuffer()
+            const crc = Bun.hash.crc32(buffer)
+
+            if (force || crc !== this.currentCrc) {
+                this.currentCrc = crc
+                const text = await new Response(buffer).text()
+                this.currentHtml = await marked.parse(text, { async: true, breaks: true })
+
+                Logger.info(`[MOTD] updated hash=${crc}`)
+                return true
+            }
+        } catch (err) {
+            Logger.error('[MOTD] failed to check update:', err)
+        }
+        return false
     }
 }
 
@@ -602,6 +635,9 @@ export async function startServer() {
                     ws.send(wsObject('provider.info', await Mino.Database.getProviderInfo()))
                     ws.send(wsObject('active.session', { value: await Mino.Memory.getTotalActiveRequests() }))
                     ws.send(wsObject('total.tokens', { value: await Mino.Database.getTotalProviderTokens() }))
+                    if (MotdManager.currentHtml) {
+                        ws.send(wsObject('motd.update', { html: MotdManager.currentHtml }))
+                    }
                     return
                 }
 
@@ -620,6 +656,9 @@ export async function startServer() {
                 ws.send(wsObject('provider.info', await Mino.Database.getProviderInfo()))
                 ws.send(wsObject('active.session', { value: await Mino.Memory.getTotalActiveRequests() }))
                 ws.send(wsObject('total.tokens', { value: await Mino.Database.getTotalProviderTokens() }))
+                if (MotdManager.currentHtml) {
+                    ws.send(wsObject('motd.update', { html: MotdManager.currentHtml }))
+                }
             },
             message: async (ws, message) => {
                 try {
@@ -666,6 +705,16 @@ export async function startServer() {
     instance.listen(serverPort, () => {
         Logger.info(`server is online. http://127.0.0.1:${serverPort}`)
     })
+
+    await MotdManager.init()
+
+    setInterval(async () => {
+        if (await MotdManager.check()) {
+            instance.server?.publish('provider.info', JSON.stringify(
+                wsObject('motd.update', { html: MotdManager.currentHtml })
+            ))
+        }
+    }, 5000)
 
     return instance
 }

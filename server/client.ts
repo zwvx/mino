@@ -310,6 +310,17 @@ async function indexScript() {
         },
         'total.tokens': async ({ value }: any) => {
             document.getElementById('total-tokens')!.textContent = value.toLocaleString()
+        },
+        'motd.update': async ({ html }: any) => {
+            const el = document.getElementById('motd-content')
+            if (el) {
+                el.innerHTML = html
+                if (html) {
+                    el.classList.remove('hidden')
+                } else {
+                    el.classList.add('hidden')
+                }
+            }
         }
     }
 
