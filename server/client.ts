@@ -33,6 +33,9 @@ class Cursor {
     private animationFrame: number | null = null
     private resizeTimeout: number | null = null
     private lastSend = 0
+    private lastX: number | null = null
+    private lastY: number | null = null
+    private listenersAttached = false
 
     private readonly THROTTLE_MS = 50
     private readonly LERP_FACTOR = 0.15
@@ -57,6 +60,12 @@ class Cursor {
 
         if (clientId && !isTouchDevice) {
             this.initMouseTracking()
+            if (this.lastX !== null && this.lastY !== null) {
+                this.ws.send(JSON.stringify({
+                    type: 'cursor.move',
+                    data: { x: this.lastX, y: this.lastY }
+                }))
+            }
         }
 
         window.addEventListener('resize', () => this.debouncedResize())
@@ -93,7 +102,12 @@ class Cursor {
     }
 
     private initMouseTracking() {
+        if (this.listenersAttached) return
+        this.listenersAttached = true
+
         document.addEventListener('mousemove', (e) => {
+            this.lastX = e.pageX
+            this.lastY = e.pageY
             const now = Date.now()
             if (now - this.lastSend < this.THROTTLE_MS) return
             this.lastSend = now

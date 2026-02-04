@@ -121,8 +121,14 @@ export async function startServer() {
 
     const instance = new Elysia()
         .use(ip).use(identity).use(cors()).use(html())
-        .onBeforeHandle(({ ip, country, status }) => {
-            if (!ip || !country) return status(403, 'Invalid IP or country code')
+        .onBeforeHandle(({ ip, country, status, request }) => {
+            if (!ip || !country) {
+                return status(403, 'Invalid IP or country code')
+            }
+
+            if (!request.url.includes('/x/')) {
+                Logger.info(`[${country}:${ip}] [${request.method}] ${request.url}`)
+            }
         })
         .get('/', async () => {
             return await Index()
