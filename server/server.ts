@@ -28,13 +28,7 @@ export function wsObject(type: string, data: Record<string, any>) {
     return { type, data }
 }
 
-const blueBgWhiteTx = `\x1b[44;37m`
-const greenBgWhiteTx = `\x1b[42;37m`
-const redBgWhiteTx = `\x1b[41;37m`
-const yellowTx = `\x1b[33m`
-const redTx = `\x1b[31m`
-const cyanTx = `\x1b[36m`
-const colorReset = `\x1b[0m`
+import { Logger } from './utils/logger'
 
 class CursorData {
     private static data = new Map<string, { x: number, y: number, color: string }>()
@@ -126,7 +120,7 @@ export async function startServer() {
             const result = await response.json() as { success: boolean }
             if (result.success) {
                 markIpVerified(ip!)
-                console.log(`[${ip}] IP verified`)
+                Logger.info(`[${ip}] IP verified`)
                 return { success: true }
             }
 
@@ -180,7 +174,7 @@ export async function startServer() {
             const identityKey = identity.key
 
             if (match.endpoint === '/' || pathname === `/x/${match.provider}`) {
-                console.log(`${blueBgWhiteTx}[${identityKey}]${colorReset} [${identity.schema}] [${provider.id}] [${match.endpoint}]`)
+                Logger.entry(identityKey, identity.schema, provider.id, match.endpoint)
                 if (provider.page) {
                     return ProviderView({ provider })
                 }
@@ -194,6 +188,7 @@ export async function startServer() {
             let providerKey: NonNullableKeyData
             let requestToken: number = 0
             let isChatCompletion: boolean = false
+            let outputTokens: number = 0
 
             let providerCooldown: string = provider.cooldown.default
             let cooldownType: string = 'default'
@@ -219,7 +214,7 @@ export async function startServer() {
                     }
 
                     const afterUnregister = Mino.Memory.unregisterRequest(identityKey, registeredRequestId)
-                    console.debug(`${cyanTx}[${identityKey}] unregistered request ${registeredRequestId}, activeRequests: ${activeBeforeCleanup} -> ${afterUnregister}${colorReset}`)
+                    Logger.debugKey(identityKey, `unregistered request ${registeredRequestId}, activeRequests: ${activeBeforeCleanup} -> ${afterUnregister}`)
                     registeredRequestId = null
                 } else {
                     if (allocatedKeyId) {
@@ -237,12 +232,12 @@ export async function startServer() {
                         const cooldownDuration = parseDuration(providerCooldown || '0s')
                         Mino.Memory.setCooldown(identityKey, cooldownType, Date.now() + cooldownDuration)
                     } catch (e) {
-                        console.error('Failed to parse cooldown', e)
+                        Logger.error('Failed to parse cooldown', e)
                     }
                 }
 
                 if (isChatCompletion) {
-                    console.log(`${greenBgWhiteTx}[${identityKey}]${colorReset} [${identity.schema}] ${pathname} took ${(perf.now() - requestStart).toFixed(2)}ms`)
+                    Logger.completion(identityKey, identity.schema!, pathname, `${(perf.now() - requestStart).toFixed(2)}ms`, outputTokens)
 
                     try {
                         instance.server?.publish('provider.info', JSON.stringify(
@@ -250,7 +245,7 @@ export async function startServer() {
                         ))
                     } catch { }
                 } else {
-                    console.log(`[${identityKey}] [${identity.schema}] ${pathname} took ${(perf.now() - requestStart).toFixed(2)}ms`)
+                    Logger.completionSimple(identityKey, identity.schema!, pathname, `${(perf.now() - requestStart).toFixed(2)}ms`)
                 }
             }
 
@@ -259,6 +254,7 @@ export async function startServer() {
                     if (schema && isChatCompletion) {
                         // todo: log the chat?
                         const { content, tokenCount } = schema.parseSSEChatResponse(responseContent)
+                        outputTokens = tokenCount
 
                         await Mino.Database.incrProviderTokens(provider.id, requestToken, tokenCount)
 
@@ -270,7 +266,7 @@ export async function startServer() {
                     }
                     await Mino.Database.incrProviderRequest(provider.id)
                 } catch (err) {
-                    console.error(`${redTx}[${identityKey}] error in handleResponseComplete:${colorReset}`, err)
+                    Logger.fail(identityKey, 'error in handleResponseComplete:', err)
                 } finally {
                     cleanup()
                 }
@@ -280,7 +276,7 @@ export async function startServer() {
                 schema = new requestSchema.default[identity.schema](request.clone())
 
                 if (checkRequestSpike(ip!)) {
-                    console.log(`${redBgWhiteTx}[${identityKey}]${colorReset} ${redTx}request spike detected, blocking${colorReset}`)
+                    Logger.spike(identityKey)
                     return status(429, schema.errorObject(`Mino is currently under high load. Visit "/verify" to verify your IP.`, 'invalid_request_error', 'under_attack'))
                 }
 
@@ -300,12 +296,12 @@ export async function startServer() {
                     registeredRequestId = Mino.Memory.tryRegisterRequest(identityKey, provider.concurrency.identity)
                     if (!registeredRequestId) {
                         const activeRequests = Mino.Memory.getActiveRequests(identityKey)
-                        console.log(`${yellowTx}[${identityKey}]${colorReset} concurrency limit reached (${activeRequests}/${provider.concurrency.identity})`)
+                        Logger.warnKey(identityKey, `concurrency limit reached (${activeRequests}/${provider.concurrency.identity})`)
                         return status(429, schema.errorObject(`Identity concurrency exceeded. Maximum ${provider.concurrency.identity} requests at a time.`, 'invalid_request_error', 'concurrency_limit_exceeded'))
                     }
                     concurrencyIncremented = true
                     const activeAfter = Mino.Memory.getActiveRequests(identityKey)
-                    console.debug(`${cyanTx}[${identityKey}] registered request ${registeredRequestId}, activeRequests now: ${activeAfter}${colorReset}`)
+                    Logger.debugKey(identityKey, `registered request ${registeredRequestId}, activeRequests now: ${activeAfter}`)
                 }
 
                 if (identity.user?.tier !== 'ADMIN') {
@@ -314,7 +310,7 @@ export async function startServer() {
 
                     if (nextAllowedAt > now) {
                         skipCooldownUpdate = true
-                        console.log(`${yellowTx}[${identityKey}]${colorReset} cooldown request: ${msToHuman(nextAllowedAt - now)}`)
+                        Logger.warnKey(identityKey, `cooldown request: ${msToHuman(nextAllowedAt - now)}`)
                         return status(429, schema.errorObject(`Please wait ${msToHuman(nextAllowedAt - now)} before sending another ${isChatCompletion ? 'chat completion' : 'request'}`, 'invalid_request_error', 'cooldown'))
                     }
                 }
@@ -330,7 +326,7 @@ export async function startServer() {
                             new Promise<ArrayBuffer>((_, reject) => setTimeout(() => reject(new Error('Request body timeout')), 60000))
                         ])
                     } catch (err) {
-                        console.warn(`${yellowTx}[${identityKey}] failed to read request body:${colorReset}`, err)
+                        Logger.warnKey(identityKey, 'failed to read request body:', err)
                         return status(408, schema.errorObject('Request body timeout', 'timeout'))
                     }
                 }
@@ -346,9 +342,9 @@ export async function startServer() {
                         }
 
                         bodyBuffer = preflight.processBuffer(bodyBuffer)
-                        console.debug(`${cyanTx}[${identityKey}] applied preflight: ${preflight.name}${colorReset}`)
+                        Logger.debugKey(identityKey, `applied preflight: ${preflight.name}`)
                     } catch (err) {
-                        console.warn(`${yellowTx}[${identityKey}] preflight script error:${colorReset}`, err)
+                        Logger.warnKey(identityKey, 'preflight script error:', err)
                     }
                 }
 
@@ -357,14 +353,14 @@ export async function startServer() {
                     if (modelId) {
                         const models = Mino.Memory.getProviderModels(provider.id)
                         if (models && !models.includes(modelId) && identity.user?.tier !== 'ADMIN') {
-                            console.warn(`[${identityKey}] tried to use model "${modelId}" but it is not allowed or not found.`)
+                            Logger.warnKey(identityKey, `tried to use model "${modelId}" but it is not allowed or not found.`)
                             return status(400, schema.errorObject(`Model "${modelId}" is not allowed or not found. ${models ? `Allowed models: ${models.map(model => `"${model}"`).join(', ')}` : ''}`, 'invalid_request_error', 'model_not_found'))
                         }
 
                         const upstreamModelId = provider.remap_models?.[modelId] ?? modelId
                         if (upstreamModelId !== modelId) {
                             bodyBuffer = schema.rewriteModelInBody(bodyBuffer, upstreamModelId)
-                            console.debug(`${cyanTx}[${identityKey}] remapped model "${modelId}" to "${upstreamModelId}"${colorReset}`)
+                            Logger.debugKey(identityKey, `remapped model "${modelId}" to "${upstreamModelId}"`)
                         }
                     } else {
                         return status(400, schema.errorObject('Model not specified.', 'invalid_request_error', 'model_not_specified'))
@@ -373,7 +369,7 @@ export async function startServer() {
                     const tokenResult = schema.getRequestToken(bodyBuffer)
 
                     if (tokenResult === null) {
-                        console.warn(`[${identityKey}] sends invalid request body for chat completion.`)
+                        Logger.warnKey(identityKey, `sends invalid request body for chat completion.`)
                         return status(400, schema.errorObject('Invalid request body. Expected valid JSON with messages array.', 'invalid_request_error', 'invalid_body'))
                     }
 
@@ -381,18 +377,18 @@ export async function startServer() {
 
                     if (identity.user?.tier !== 'ADMIN') {
                         if (requestToken > provider.limit.payload.input) {
-                            console.warn(`[${identityKey}] sends too many tokens for chat completion. ${requestToken.toLocaleString()} > ${provider.limit.payload.input.toLocaleString()}`)
+                            Logger.warnKey(identityKey, `sends too many tokens for chat completion. ${requestToken.toLocaleString()} > ${provider.limit.payload.input.toLocaleString()}`)
                             return status(400, schema.errorObject(`Token limit exceeded. Maximum ${provider.limit.payload.input.toLocaleString()} tokens. ${requestToken.toLocaleString()} tokens sent.`, 'invalid_request_error', 'token_limit_exceeded'))
                         }
 
                         const maxTokens = schema.getMaxTokens(bodyBuffer)
                         if (maxTokens && maxTokens > provider.limit.payload.output) {
-                            console.warn(`[${identityKey}] requests too many output tokens. ${maxTokens.toLocaleString()} > ${provider.limit.payload.output.toLocaleString()}`)
+                            Logger.warnKey(identityKey, `requests too many output tokens. ${maxTokens.toLocaleString()} > ${provider.limit.payload.output.toLocaleString()}`)
                             return status(400, schema.errorObject(`Output token limit exceeded. Maximum ${provider.limit.payload.output.toLocaleString()} tokens. ${maxTokens.toLocaleString()} tokens requested.`, 'invalid_request_error', 'token_limit_exceeded'))
                         }
                     }
 
-                    console.log(`${blueBgWhiteTx}[${identityKey}]${colorReset} [${identity.schema}] [${provider.id}] [${modelId}] chat completion request. input tokens: ${requestToken.toLocaleString()}`)
+                    Logger.entry(identityKey, identity.schema, provider.id, modelId, `chat completion request. input tokens: ${requestToken.toLocaleString()}`)
 
                     try {
                         instance.server?.publish('provider.info', JSON.stringify(
@@ -454,7 +450,7 @@ export async function startServer() {
                             Mino.Memory.incrKeyUsage(identityKey, provider.keys_id)
 
                             const errorBody = await response.text()
-                            console.log(`${redTx}[${identityKey}] [${provider.id}] non-retryable error ${statusCode}${colorReset}`, errorBody)
+                            Logger.fail(identityKey, `[${provider.id}] non-retryable error ${statusCode}`, errorBody)
 
                             const isHtml = response.headers.get('content-type')?.includes('text/html') || errorBody.trim().startsWith('<')
                             if (isHtml) {
@@ -470,7 +466,7 @@ export async function startServer() {
                         }
 
                         if ([401, 403].includes(statusCode)) {
-                            console.log(`${redTx}[${identityKey}] key <${providerKey.key.slice(0, 12)}...> unauthorized (${statusCode})${colorReset}`)
+                            Logger.fail(identityKey, `key <${providerKey.key.slice(0, 12)}...> unauthorized (${statusCode})`)
                             if (!provider.concurrency.keys.key_stay_active) {
                                 await Mino.Database.setProviderKeyState(providerKey.key, 'disabled')
                             }
@@ -478,7 +474,7 @@ export async function startServer() {
                         }
 
                         if ([402, 429].includes(statusCode)) {
-                            console.log(`${yellowTx}[${identityKey}] key <${providerKey.key.slice(0, 12)}...> ratelimited (${statusCode})${colorReset}`)
+                            Logger.warnKey(identityKey, `key <${providerKey.key.slice(0, 12)}...> ratelimited (${statusCode})`)
                             if (!provider.concurrency.keys.key_stay_active) {
                                 await Mino.Database.setProviderKeyState(providerKey.key, 'ratelimited')
                             }
@@ -497,7 +493,7 @@ export async function startServer() {
                         }
 
                         retryCount++
-                        console.log(`${cyanTx}[${identityKey}] retrying request (${retryCount}/${maxRetryCount})${colorReset}`)
+                        Logger.retry(identityKey, retryCount, maxRetryCount)
                         continue
                     }
 
@@ -575,16 +571,16 @@ export async function startServer() {
                     }), handleResponseComplete, { signal: request.signal })
                 }
 
-                console.log(`${redBgWhiteTx}[${identityKey}]${colorReset} ${redTx}max retries exceeded (${maxRetryCount}), all keys unavailable${colorReset}`)
+                Logger.fail(identityKey, `max retries exceeded (${maxRetryCount}), all keys unavailable`)
                 return status(500, schema.errorObject('Your allocated keys are currently unavailable. Try again?', 'api_error'))
             } catch (err) {
                 if (err instanceof Error && err.name === 'AbortError') {
-                    console.log(`${yellowTx}[${identityKey}]${colorReset} client disconnected, request aborted`)
+                    Logger.warnKey(identityKey, 'client disconnected, request aborted')
                     shouldDeferCleanup = false
                     return
                 }
 
-                console.error(`${redTx}[${identityKey}] uncaught error:${colorReset}`, err)
+                Logger.error(`[${identityKey}] uncaught error:`, err)
                 shouldDeferCleanup = false
                 return status(500)
             } finally {
@@ -668,7 +664,7 @@ export async function startServer() {
         })
 
     instance.listen(serverPort, () => {
-        console.log(`server is online. http://127.0.0.1:${serverPort}`)
+        Logger.info(`server is online. http://127.0.0.1:${serverPort}`)
     })
 
     return instance

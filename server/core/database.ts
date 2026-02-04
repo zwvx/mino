@@ -17,6 +17,7 @@ export class MinoDatabase {
     constructor() {
         const sqlite = new Database('data/db/database.db')
         sqlite.run('PRAGMA journal_mode = WAL;')
+        sqlite.run('PRAGMA busy_timeout = 5000;')
         this.db = drizzle(sqlite, { schema })
     }
 
