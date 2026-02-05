@@ -10,6 +10,7 @@ export interface Header {
 export interface Provider {
     id: string;
     keys_id: string;
+    keys_metadata?: { key: string; value: any }[];
     enable: boolean;
     hidden: boolean;
     require_auth: boolean;

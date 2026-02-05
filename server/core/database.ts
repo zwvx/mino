@@ -14,8 +14,8 @@ export type NonNullableKeyData = NonNullable<KeyData>
 export class MinoDatabase {
     public db: BunSQLiteDatabase<typeof schema>
 
-    constructor() {
-        const sqlite = new Database('data/db/database.db')
+    constructor(path: string = 'data/db/database.db') {
+        const sqlite = new Database(path)
         sqlite.run('PRAGMA journal_mode = WAL;')
         sqlite.run('PRAGMA busy_timeout = 5000;')
         this.db = drizzle(sqlite, { schema })
@@ -29,7 +29,7 @@ export class MinoDatabase {
         console.log('database connection initialized')
     }
 
-    async getRandomProviderKey(providerKeyId: string, excludeKeyIds?: string[]) {
+    async getRandomProviderKey(providerKeyId: string, excludeKeyIds?: string[], metadataFilter?: { key: string; value: any }[]) {
         const conditions = [
             eq(schema.providerKeys.providerKeyId, providerKeyId),
             eq(schema.providerKeys.state, 'active')
@@ -37,6 +37,12 @@ export class MinoDatabase {
 
         if (excludeKeyIds?.length) {
             conditions.push(notInArray(schema.providerKeys.key, excludeKeyIds))
+        }
+
+        if (metadataFilter?.length) {
+            for (const filter of metadataFilter) {
+                conditions.push(sql`json_extract(${schema.providerKeys.metadata}, ${`$.info.${filter.key}`}) = ${filter.value}`)
+            }
         }
 
         return this.db.select()
@@ -141,10 +147,18 @@ export class MinoDatabase {
                 continue
             }
 
-            const totalKeys = await this.db.select({ id: schema.providerKeys.id }).from(schema.providerKeys).where(and(
+            const conditions = [
                 eq(schema.providerKeys.providerKeyId, provider.keys_id),
                 eq(schema.providerKeys.state, 'active')
-            )).all()
+            ]
+
+            if (provider.keys_metadata?.length) {
+                for (const filter of provider.keys_metadata) {
+                    conditions.push(sql`json_extract(${schema.providerKeys.metadata}, ${`$.info.${filter.key}`}) = ${filter.value}`)
+                }
+            }
+
+            const totalKeys = await this.db.select({ id: schema.providerKeys.id }).from(schema.providerKeys).where(and(...conditions)).all()
 
             const totalInputSpent = calcSpentPerScale(providerInfo.totalTokensInput, provider.pricing.input.value, provider.pricing.input.token_scale)
             const totalOutputSpent = calcSpentPerScale(providerInfo.totalTokensOutput, provider.pricing.output.value, provider.pricing.output.token_scale)

@@ -25,6 +25,22 @@
                 "keys_id": {
                     "type": "string"
                 },
+                "keys_metadata": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "key": {
+                                "type": "string"
+                            },
+                            "value": {}
+                        },
+                        "required": [
+                            "key",
+                            "value"
+                        ]
+                    }
+                },
                 "enable": {
                     "type": "boolean"
                 },

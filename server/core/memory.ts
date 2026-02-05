@@ -69,7 +69,7 @@ export class MinoMemory {
             let success = false
 
             for (let attempt = 0; attempt < MAX_RETRIES && !success; attempt++) {
-                const keyData = await Mino.Database.getRandomProviderKey(provider.keys_id, failedKeys)
+                const keyData = await Mino.Database.getRandomProviderKey(provider.keys_id, failedKeys, provider.keys_metadata)
                 if (!keyData) {
                     console.warn(`no key available for ${providerId}, skipping model cache`)
                     break
@@ -362,7 +362,7 @@ export class MinoMemory {
 
         const saturatedKeys = this.getSaturatedKeyIds(providerKeysId, sameKeyConcurrency)
         console.debug(`[allocateKey] provider=${provider.id}, keysId=${providerKeysId}, sameKeyConcurrency=${sameKeyConcurrency}, saturatedKeys=[${saturatedKeys.map(k => `${k.slice(0, 8)}...(${this.getKeyConcurrency(k)})`).join(', ')}]`)
-        const keyData = await Mino.Database.getRandomProviderKey(providerKeysId, saturatedKeys)
+        const keyData = await Mino.Database.getRandomProviderKey(providerKeysId, saturatedKeys, provider.keys_metadata)
         if (!keyData) {
             console.error(`[allocateKey] all keys saturated. KeyConcurrency dump:`)
             for (const [keyId, data] of this.KeyConcurrency) {
