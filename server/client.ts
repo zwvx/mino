@@ -256,10 +256,50 @@ class Cursor {
     }
 }
 
+class SmoothCounter {
+    private current: number = 0
+    private target: number = 0
+    private frameId: number | null = null
+
+    constructor(private element: HTMLElement) {
+        const text = element.textContent?.replace(/,/g, '') || '0'
+        this.current = parseInt(text, 10) || 0
+        this.target = this.current
+    }
+
+    update(newValue: number) {
+        this.target = newValue
+        if (!this.frameId) {
+            this.animate()
+        }
+    }
+
+    private animate = () => {
+        const diff = this.target - this.current
+
+        if (Math.abs(diff) < 0.5) {
+            this.current = this.target
+            this.element.textContent = Math.floor(this.current).toLocaleString()
+            this.frameId = null
+            return
+        }
+
+        this.current += diff * 0.15
+        this.element.textContent = Math.floor(this.current).toLocaleString()
+        this.frameId = requestAnimationFrame(this.animate)
+    }
+}
+
 async function indexScript() {
     const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const ws = new RWS(`${wsProto}//${window.location.host}/mino`)
     const cursor = new Cursor(ws)
+
+    const totalTokensEl = document.getElementById('total-tokens')
+    let tokensCounter: SmoothCounter | null = null
+    if (totalTokensEl) {
+        tokensCounter = new SmoothCounter(totalTokensEl)
+    }
 
     const uptimeEl = document.getElementById('uptime')
     const serverStart = Number(uptimeEl?.dataset.start) || 0
@@ -323,7 +363,11 @@ async function indexScript() {
             document.getElementById('active-session')!.textContent = value
         },
         'total.tokens': async ({ value }: any) => {
-            document.getElementById('total-tokens')!.textContent = value.toLocaleString()
+            if (tokensCounter) {
+                tokensCounter.update(value)
+            } else {
+                document.getElementById('total-tokens')!.textContent = value.toLocaleString()
+            }
         },
         'motd.update': async ({ html }: any) => {
             const el = document.getElementById('motd-content')
