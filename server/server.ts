@@ -188,6 +188,14 @@ export async function startServer() {
                 }
             }
 
+            if (match.endpoint === '/' || pathname === `/x/${match.provider}`) {
+                Logger.entry(`${country}:${ip}`, request.method, provider.id, match.endpoint)
+                if (provider.page) {
+                    return ProviderView({ provider })
+                }
+                return FallbackView()
+            }
+
             if (!identity.schema && provider.schema?.[0]) {
                 identity.schema = provider.schema[0].id as requestSchema.SchemaType
             }
@@ -211,14 +219,6 @@ export async function startServer() {
 
             if (!identity.key) return status(400)
             const identityKey = identity.key
-
-            if (match.endpoint === '/' || pathname === `/x/${match.provider}`) {
-                Logger.entry(identityKey, identity.schema, provider.id, match.endpoint)
-                if (provider.page) {
-                    return ProviderView({ provider })
-                }
-                return FallbackView()
-            }
 
             const schemaMap = provider.schema?.find((s) => s.id === identity.schema)
             if (!schemaMap) return status(400)
@@ -468,7 +468,14 @@ export async function startServer() {
                         ? match.endpoint.slice(upstreamPath.length)
                         : match.endpoint
 
-                    const endpoint = (baseUrl + upstreamPath + cleanEndpoint).replace(/([^:]\/)\/+/g, '$1')
+                    const urlFn = new URL(request.url)
+                    const searchParams = schema.distillQuery(urlFn.searchParams)
+                    const searchString = searchParams.toString()
+
+                    let endpoint = (baseUrl + upstreamPath + cleanEndpoint).replace(/([^:]\/)\/+/g, '$1')
+                    if (searchString) {
+                        endpoint += (endpoint.includes('?') ? '&' : '?') + searchString
+                    }
 
                     const timeoutSignal = AbortSignal.timeout(180_000) // 3 minutes
                     const signal = AbortSignal.any([request.signal, timeoutSignal])

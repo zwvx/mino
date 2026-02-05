@@ -147,4 +147,9 @@ export class GeminiRequest extends SchemaRequest {
         // todo.
         return bodyBuffer
     }
+
+    override distillQuery(searchParams: URLSearchParams): URLSearchParams {
+        searchParams.delete('key')
+        return searchParams
+    }
 }

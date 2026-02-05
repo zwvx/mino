@@ -104,4 +104,8 @@ export class SchemaRequest {
         }
         return []
     }
+
+    distillQuery(searchParams: URLSearchParams): URLSearchParams {
+        return searchParams
+    }
 }
