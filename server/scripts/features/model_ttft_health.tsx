@@ -77,8 +77,10 @@ class ModelTTFTHealth extends ProviderFeature {
         const baseUrl = schemaConfig.base ?? this.provider.endpoint.default
         const endpoint = `${baseUrl}${schemaConfig.upstream_path}${this.getChatPath(schemaType)}`
 
+        let keyData: Awaited<ReturnType<typeof Mino.Memory.allocateKey>> | null = null
+
         try {
-            const keyData = await Mino.Memory.allocateKey(identityKey, this.provider)
+            keyData = await Mino.Memory.allocateKey(identityKey, this.provider)
 
             const dummyRequest = new Request(endpoint, {
                 method: 'POST',
@@ -148,6 +150,10 @@ class ModelTTFTHealth extends ProviderFeature {
                 checkedAt: Date.now()
             }
         } catch (err) {
+            if (keyData) {
+                Mino.Memory.decrKeyConcurrency(keyData.key)
+            }
+
             if (err instanceof DOMException && err.name === 'TimeoutError') {
                 console.warn(`[${this.id}] [${this.provider.id}] timeout testing model ${modelId}`)
                 return { ttft: null, status: 'timeout', checkedAt: Date.now() }

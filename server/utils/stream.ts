@@ -12,6 +12,11 @@ export function proxyResponseStream(
         return response
     }
 
+    if (options?.signal?.aborted) {
+        onComplete('')
+        return response
+    }
+
     const decoder = new TextDecoder()
     let body = ''
     let cleanupCalled = false
@@ -59,6 +64,7 @@ export function proxyResponseStream(
     if (options?.signal) {
         options.signal.addEventListener('abort', () => {
             cancelUpstream(options.signal?.reason)
+            safeCleanup()
         }, { once: true })
     }
 
