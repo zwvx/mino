@@ -1,9 +1,22 @@
+import type { EndpointType } from '@/types/endpoint-types'
+
 export class SchemaRequest {
     request: Request
     additionalStripHeaders: string[] = []
 
+    protected endpointPatterns: Partial<Record<EndpointType, string[]>> = {}
+
     constructor(request: Request) {
         this.request = request
+    }
+
+    getEndpointType(path: string): EndpointType {
+        for (const [type, patterns] of Object.entries(this.endpointPatterns)) {
+            if (patterns && patterns.some(p => path.endsWith(p) || path === p)) {
+                return type as EndpointType
+            }
+        }
+        return 'passthrough'
     }
 
     setProviderKey(key: string) { }
@@ -109,3 +122,4 @@ export class SchemaRequest {
         return searchParams
     }
 }
+

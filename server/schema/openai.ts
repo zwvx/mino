@@ -2,6 +2,11 @@ import { SchemaRequest } from './base'
 import { estimateTokenCount } from 'tokenx'
 
 export class OpenAIRequest extends SchemaRequest {
+    protected override endpointPatterns = {
+        chat_completion: ['/chat/completions'],
+        image_generation: ['/images/generations', '/images/edits', '/images/variations']
+    }
+
     override setProviderKey(key: string) {
         this.request.headers.set('authorization', `Bearer ${key}`)
     }

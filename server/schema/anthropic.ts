@@ -2,6 +2,10 @@ import { SchemaRequest } from './base'
 import { estimateTokenCount } from 'tokenx'
 
 export class AnthropicRequest extends SchemaRequest {
+    protected override endpointPatterns = {
+        chat_completion: ['/v1/messages']
+    }
+
     override additionalStripHeaders = ['authorization']
 
     override setProviderKey(key: string) {

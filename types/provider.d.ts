@@ -1,3 +1,5 @@
+import type { EndpointTypeConfig } from './endpoint-types'
+
 export interface ProviderConfig {
     provider: Provider
 }
@@ -16,6 +18,7 @@ export interface Provider {
     require_auth: boolean;
     endpoint: Endpoint;
     schema: Schema[];
+    endpoint_types?: EndpointTypeConfig[];
     limit: Limit;
     pricing: Pricing;
     concurrency: Concurrency;

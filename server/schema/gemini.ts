@@ -2,6 +2,10 @@ import { SchemaRequest } from './base'
 import { estimateTokenCount } from 'tokenx'
 
 export class GeminiRequest extends SchemaRequest {
+    protected override endpointPatterns = {
+        chat_completion: [':generateContent', ':generateContentBatch', ':streamGenerateContent']
+    }
+
     override setProviderKey(key: string) {
         this.request.headers.set('x-goog-api-key', key)
     }
