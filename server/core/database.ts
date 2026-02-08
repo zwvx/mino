@@ -41,7 +41,15 @@ export class MinoDatabase {
 
         if (metadataFilter?.length) {
             for (const filter of metadataFilter) {
-                conditions.push(sql`json_extract(${schema.providerKeys.metadata}, ${`$.info.${filter.key}`}) = ${filter.value}`)
+                const jsonPath = `$.info.${filter.key}`
+                if (Array.isArray(filter.value)) {
+                    const orConditions = filter.value.map(v =>
+                        sql`json_extract(${schema.providerKeys.metadata}, ${jsonPath}) = ${v}`
+                    )
+                    conditions.push(sql`(${sql.join(orConditions, sql` OR `)})`)
+                } else {
+                    conditions.push(sql`json_extract(${schema.providerKeys.metadata}, ${jsonPath}) = ${filter.value}`)
+                }
             }
         }
 
@@ -154,7 +162,15 @@ export class MinoDatabase {
 
             if (provider.keys_metadata?.length) {
                 for (const filter of provider.keys_metadata) {
-                    conditions.push(sql`json_extract(${schema.providerKeys.metadata}, ${`$.info.${filter.key}`}) = ${filter.value}`)
+                    const jsonPath = `$.info.${filter.key}`
+                    if (Array.isArray(filter.value)) {
+                        const orConditions = filter.value.map(v =>
+                            sql`json_extract(${schema.providerKeys.metadata}, ${jsonPath}) = ${v}`
+                        )
+                        conditions.push(sql`(${sql.join(orConditions, sql` OR `)})`)
+                    } else {
+                        conditions.push(sql`json_extract(${schema.providerKeys.metadata}, ${jsonPath}) = ${filter.value}`)
+                    }
                 }
             }
 
