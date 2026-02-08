@@ -386,7 +386,7 @@ export async function startServer() {
                             await preflight.init()
                         }
 
-                        bodyBuffer = preflight.processBuffer(bodyBuffer)
+                        bodyBuffer = preflight.processBuffer(bodyBuffer, identity.schema!)
                         Logger.debugKey(identityKey, `applied preflight: ${preflight.name}`)
                     } catch (err) {
                         Logger.warnKey(identityKey, 'preflight script error:', err)
@@ -519,6 +519,11 @@ export async function startServer() {
                                 statusText: response.statusText,
                                 headers: response.headers
                             }), cleanup, { signal: request.signal })
+                        }
+
+                        if (statusCode >= 500) {
+                            const errorBody = await response.text().catch(() => '')
+                            Logger.warnKey(identityKey, `[${provider.id}] upstream error ${statusCode}`, errorBody.slice(0, 500))
                         }
 
                         if ([401, 403].includes(statusCode)) {
