@@ -468,13 +468,14 @@ export async function startServer() {
                     const baseUrl = schemaMap.base ?? provider.endpoint[endpointType]
                     const upstreamPath = schemaMap.upstream_path
 
-                    const hasUpstreamPrefix = upstreamPath && (
-                        match.endpoint === upstreamPath ||
-                        match.endpoint.startsWith(upstreamPath + '/')
+                    const stripPath = schemaMap.strip_path ?? upstreamPath
+                    const hasStripPrefix = stripPath && (
+                        match.endpoint === stripPath ||
+                        match.endpoint.startsWith(stripPath + '/')
                     )
 
-                    const cleanEndpoint = hasUpstreamPrefix
-                        ? match.endpoint.slice(upstreamPath.length)
+                    const cleanEndpoint = hasStripPrefix
+                        ? match.endpoint.slice(stripPath.length)
                         : match.endpoint
 
                     const urlFn = new URL(request.url)

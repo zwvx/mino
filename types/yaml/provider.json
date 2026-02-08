@@ -290,6 +290,9 @@
                 },
                 "upstream_path": {
                     "type": "string"
+                },
+                "strip_path": {
+                    "type": "string"
                 }
             },
             "required": [

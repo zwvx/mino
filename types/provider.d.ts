@@ -81,6 +81,7 @@ export interface Schema {
     id: string;
     base?: string;
     upstream_path: string;
+    strip_path?: string;
 }
 
 export interface Scripts {
