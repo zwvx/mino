@@ -98,10 +98,11 @@ export class MinoServices {
 
             try {
                 const result = await instance.check(key, endpoint)
+                let metadataObj: ProviderKeyMetadata | null = null
 
                 await Mino.Database.setProviderKeyState(key, result.result, false)
                 if (result.metadata) {
-                    const metadataObj: ProviderKeyMetadata = { info: result.metadata }
+                    metadataObj = { info: result.metadata }
 
                     if (keyData.metadata?.endpoint) {
                         metadataObj.endpoint = keyData.metadata.endpoint
@@ -112,13 +113,13 @@ export class MinoServices {
 
                 switch (result.result) {
                     case 'active':
-                        console.log(`[Checker] provider <${provider.id}> key <${key.slice(0, 12)}...>: active. meta: ${JSON.stringify(result.metadata)}`)
+                        console.log(`[Checker] provider <${provider.id}> key <${key.slice(0, 12)}...>: active. meta: ${JSON.stringify(metadataObj)}`)
                         break
                     case 'disabled':
-                        console.log(`[Checker] provider <${provider.id}> key <${key.slice(0, 12)}...>: disabled. meta: ${JSON.stringify(result.metadata)}`)
+                        console.log(`[Checker] provider <${provider.id}> key <${key.slice(0, 12)}...>: disabled. meta: ${JSON.stringify(metadataObj)}`)
                         break
                     case 'error':
-                        console.log(`[Checker] provider <${provider.id}> key <${key.slice(0, 12)}...>: error. meta: ${JSON.stringify(result.metadata)}`)
+                        console.log(`[Checker] provider <${provider.id}> key <${key.slice(0, 12)}...>: error. meta: ${JSON.stringify(metadataObj)}`)
                         break
                     default:
                         break

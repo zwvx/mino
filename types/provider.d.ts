@@ -59,6 +59,7 @@ export interface Override {
     headers: Header[];
     path: PathOverride[];
     models: any[];
+    strip_mode?: 'default' | 'minimal';
 }
 
 export interface PathOverride {

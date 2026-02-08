@@ -356,7 +356,11 @@ export async function startServer() {
                     }
                 }
 
-                schema.stripHeaders()
+                if (provider.override.strip_mode === 'minimal') {
+                    schema.stripHeadersMinimal(provider.override.headers)
+                } else {
+                    schema.stripHeaders()
+                }
                 schema.overrideHeaders(provider.override.headers)
 
                 let bodyBuffer: ArrayBuffer | null = null

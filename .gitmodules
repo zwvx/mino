@@ -7,3 +7,6 @@
 [submodule "modules/nsa"]
 	path = modules/nsa
 	url = git@github.com:zwvx/mino-nsa.git
+[submodule "modules/ups"]
+	path = modules/ups
+	url = git@github.com:zwvx/mino-upstream.git

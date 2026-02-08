@@ -1,5 +1,7 @@
 import { SchemaRequest } from './base'
 import { estimateTokenCount } from 'tokenx'
+import type { Attachment } from '@/types/attachment'
+import { fileTypeFromBuffer } from 'file-type'
 
 export class OpenAIRequest extends SchemaRequest {
     protected override endpointPatterns = {
@@ -131,5 +133,60 @@ export class OpenAIRequest extends SchemaRequest {
         } catch {
             return bodyBuffer
         }
+    }
+
+    override async getAttachments(bodyBuffer: ArrayBuffer): Promise<Attachment[]> {
+        const attachments: Attachment[] = []
+        try {
+            const decoder = new TextDecoder()
+            const body = decoder.decode(bodyBuffer)
+            const json = JSON.parse(body)
+
+            if (json.messages && Array.isArray(json.messages)) {
+                for (const message of json.messages) {
+                    if (Array.isArray(message.content)) {
+                        for (const part of message.content) {
+                            if (part.type === 'image_url' && part.image_url?.url) {
+                                const url = part.image_url.url
+                                if (url.startsWith('data:')) {
+                                    const base64Data = url.split(',')[1]
+                                    if (base64Data) {
+                                        const buffer = Buffer.from(base64Data, 'base64')
+                                        const type = await fileTypeFromBuffer(buffer)
+                                        attachments.push({
+                                            mimetype: type?.mime || 'unknown',
+                                            data: buffer,
+                                            size: buffer.length
+                                        })
+                                    }
+                                }
+                            }
+                            if (part.type === 'input_audio' && part.input_audio?.data) {
+                                const base64Data = part.input_audio.data
+                                const buffer = Buffer.from(base64Data, 'base64')
+                                const type = await fileTypeFromBuffer(buffer)
+                                attachments.push({
+                                    mimetype: type?.mime || part.input_audio.format || 'unknown',
+                                    data: buffer,
+                                    size: buffer.length
+                                })
+                            }
+                            if (part.type === 'file' && part.file?.file_data) {
+                                const base64Data = part.file.file_data
+                                const buffer = Buffer.from(base64Data, 'base64')
+                                const type = await fileTypeFromBuffer(buffer)
+                                attachments.push({
+                                    mimetype: type?.mime || 'unknown',
+                                    data: buffer,
+                                    filename: part.file.filename,
+                                    size: buffer.length
+                                })
+                            }
+                        }
+                    }
+                }
+            }
+        } catch { }
+        return attachments
     }
 }

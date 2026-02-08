@@ -1,4 +1,6 @@
 import type { EndpointType } from '@/types/endpoint-types'
+import { fileTypeFromBuffer } from 'file-type'
+import type { Attachment } from '@/types/attachment'
 
 export class SchemaRequest {
     request: Request
@@ -44,6 +46,28 @@ export class SchemaRequest {
         ]
 
         for (const header of headers) {
+            this.request.headers.delete(header)
+        }
+    }
+
+    stripHeadersMinimal(overrideHeaders: { key: string; value: string }[] = []) {
+        const allowedHeaders = new Set([
+            'content-type',
+            'accept',
+        ])
+
+        for (const header of overrideHeaders) {
+            allowedHeaders.add(header.key.toLowerCase())
+        }
+
+        const headersToDelete: string[] = []
+        this.request.headers.forEach((_, key) => {
+            if (!allowedHeaders.has(key.toLowerCase())) {
+                headersToDelete.push(key)
+            }
+        })
+
+        for (const header of headersToDelete) {
             this.request.headers.delete(header)
         }
     }
@@ -109,6 +133,10 @@ export class SchemaRequest {
 
     rewriteModelInBody(bodyBuffer: ArrayBuffer, newModelId: string): ArrayBuffer {
         return bodyBuffer
+    }
+
+    async getAttachments(bodyBuffer: ArrayBuffer): Promise<Attachment[]> {
+        return []
     }
 
     parseModelsResponse(data: Record<string, any>): string[] {
