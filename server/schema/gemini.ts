@@ -1,7 +1,13 @@
 import { SchemaRequest } from './base'
 import { estimateTokenCount } from 'tokenx'
+import type { Attachment } from '@/types/attachment'
+import { fileTypeFromBuffer } from 'file-type'
 
 export class GeminiRequest extends SchemaRequest {
+    protected override endpointPatterns = {
+        chat_completion: [':generateContent', ':generateContentBatch', ':streamGenerateContent']
+    }
+
     override setProviderKey(key: string) {
         this.request.headers.set('x-goog-api-key', key)
     }
@@ -146,6 +152,35 @@ export class GeminiRequest extends SchemaRequest {
     override rewriteModelInBody(bodyBuffer: ArrayBuffer, newModelId: string): ArrayBuffer {
         // todo.
         return bodyBuffer
+    }
+
+    override async getAttachments(bodyBuffer: ArrayBuffer): Promise<Attachment[]> {
+        const attachments: Attachment[] = []
+        try {
+            const decoder = new TextDecoder()
+            const body = decoder.decode(bodyBuffer)
+            const json = JSON.parse(body)
+
+            if (json.contents && Array.isArray(json.contents)) {
+                for (const content of json.contents) {
+                    if (content.parts && Array.isArray(content.parts)) {
+                        for (const part of content.parts) {
+                            if (part.inlineData && part.inlineData.data) {
+                                const base64Data = part.inlineData.data
+                                const buffer = Buffer.from(base64Data, 'base64')
+                                const type = await fileTypeFromBuffer(buffer)
+                                attachments.push({
+                                    mimetype: part.inlineData.mimeType || type?.mime || 'unknown',
+                                    data: buffer,
+                                    size: buffer.length
+                                })
+                            }
+                        }
+                    }
+                }
+            }
+        } catch { }
+        return attachments
     }
 
     override distillQuery(searchParams: URLSearchParams): URLSearchParams {

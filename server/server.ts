@@ -25,6 +25,9 @@ import { parseDuration, msToHuman } from '@/utils/time'
 import type { ResponseValidator } from '@/modules/scripts/response_validation/types'
 import type { ProviderPreflight } from '@/modules/scripts/request_preflight/base'
 
+import type { EndpointType } from '@/types/endpoint-types'
+import { resolveEndpointType, getHandler, EndpointHandler } from './handlers'
+
 export function wsObject(type: string, data: Record<string, any>) {
     return { type, data }
 }
@@ -226,7 +229,8 @@ export async function startServer() {
             let schema: SchemaRequestType | undefined
             let providerKey: NonNullableKeyData
             let requestToken: number = 0
-            let isChatCompletion: boolean = false
+            let endpointType: EndpointType = 'passthrough'
+            let handler: EndpointHandler | undefined
             let outputTokens: number = 0
 
             let providerCooldown: string = provider.cooldown.default
@@ -275,7 +279,7 @@ export async function startServer() {
                     }
                 }
 
-                if (isChatCompletion) {
+                if (handler?.trackUnits) {
                     Logger.completion(identityKey, identity.schema!, pathname, `${(perf.now() - requestStart).toFixed(2)}ms`, outputTokens)
 
                     try {
@@ -290,12 +294,11 @@ export async function startServer() {
 
             const handleResponseComplete = async (responseContent: string) => {
                 try {
-                    if (schema && isChatCompletion) {
-                        // todo: log the chat?
-                        const { content, tokenCount } = schema.parseSSEChatResponse(responseContent)
-                        outputTokens = tokenCount
+                    if (handler?.trackUnits) {
+                        const { content, units } = handler.parseResponse(responseContent)
+                        outputTokens = units
 
-                        await Mino.Database.incrProviderTokens(provider.id, requestToken, tokenCount)
+                        await Mino.Database.incrProviderTokens(provider.id, requestToken, units)
 
                         try {
                             instance.server?.publish('provider.info', JSON.stringify(
@@ -319,11 +322,10 @@ export async function startServer() {
                     return status(429, schema.errorObject(`Mino is currently under high load. Visit "/verify" to verify your IP.`, 'invalid_request_error', 'under_attack'))
                 }
 
-                isChatCompletion = schema.isChatCompletionEndpoint()
-                if (isChatCompletion) {
-                    providerCooldown = provider.cooldown.chat_completion || provider.cooldown.default
-                    cooldownType = 'chat_completion'
-                }
+                endpointType = resolveEndpointType(match.endpoint, provider.endpoint_types, schema)
+                handler = getHandler(endpointType, schema)
+                providerCooldown = provider.cooldown[endpointType] || provider.cooldown.default
+                cooldownType = endpointType
 
                 if (schema.isModelListEndpoint()) {
                     const models = Mino.Memory.getProviderModels(provider.id)
@@ -350,11 +352,15 @@ export async function startServer() {
                     if (nextAllowedAt > now) {
                         skipCooldownUpdate = true
                         Logger.warnKey(identityKey, `cooldown request: ${msToHuman(nextAllowedAt - now)}`)
-                        return status(429, schema.errorObject(`Please wait ${msToHuman(nextAllowedAt - now)} before sending another ${isChatCompletion ? 'chat completion' : 'request'}`, 'invalid_request_error', 'cooldown'))
+                        return status(429, schema.errorObject(`Please wait ${msToHuman(nextAllowedAt - now)} before sending another ${endpointType === 'chat_completion' ? 'chat completion' : 'request'}`, 'invalid_request_error', 'cooldown'))
                     }
                 }
 
-                schema.stripHeaders()
+                if (provider.override.strip_mode === 'minimal') {
+                    schema.stripHeadersMinimal(provider.override.headers)
+                } else {
+                    schema.stripHeaders()
+                }
                 schema.overrideHeaders(provider.override.headers)
 
                 let bodyBuffer: ArrayBuffer | null = null
@@ -387,8 +393,8 @@ export async function startServer() {
                     }
                 }
 
-                if (isChatCompletion && bodyBuffer) {
-                    const modelId = schema.getModelId(bodyBuffer)
+                if (handler?.validateModel && bodyBuffer) {
+                    const modelId = handler.getModelId(bodyBuffer)
                     if (modelId) {
                         const models = Mino.Memory.getProviderModels(provider.id)
                         if (models && !models.includes(modelId) && identity.user?.tier !== 'ADMIN') {
@@ -398,36 +404,39 @@ export async function startServer() {
 
                         const upstreamModelId = provider.remap_models?.[modelId] ?? modelId
                         if (upstreamModelId !== modelId) {
-                            bodyBuffer = schema.rewriteModelInBody(bodyBuffer, upstreamModelId)
+                            bodyBuffer = handler.rewriteModel(bodyBuffer, upstreamModelId)
                             Logger.debugKey(identityKey, `remapped model "${modelId}" to "${upstreamModelId}"`)
                         }
                     } else {
                         return status(400, schema.errorObject('Model not specified.', 'invalid_request_error', 'model_not_specified'))
                     }
+                }
 
-                    const tokenResult = schema.getRequestToken(bodyBuffer)
+                if (handler?.trackUnits && bodyBuffer) {
+                    const tokenResult = handler.getInputUnits(bodyBuffer)
 
-                    if (tokenResult === null) {
-                        Logger.warnKey(identityKey, `sends invalid request body for chat completion.`)
-                        return status(400, schema.errorObject('Invalid request body. Expected valid JSON with messages array.', 'invalid_request_error', 'invalid_body'))
+                    if (tokenResult === 0) {
+                        Logger.warnKey(identityKey, `sends invalid request body for ${endpointType}.`)
+                        return status(400, schema.errorObject('Invalid request body.', 'invalid_request_error', 'invalid_body'))
                     }
 
                     requestToken = tokenResult
 
                     if (identity.user?.tier !== 'ADMIN') {
                         if (requestToken > provider.limit.payload.input) {
-                            Logger.warnKey(identityKey, `sends too many tokens for chat completion. ${requestToken.toLocaleString()} > ${provider.limit.payload.input.toLocaleString()}`)
+                            Logger.warnKey(identityKey, `sends too many tokens. ${requestToken.toLocaleString()} > ${provider.limit.payload.input.toLocaleString()}`)
                             return status(400, schema.errorObject(`Token limit exceeded. Maximum ${provider.limit.payload.input.toLocaleString()} tokens. ${requestToken.toLocaleString()} tokens sent.`, 'invalid_request_error', 'token_limit_exceeded'))
                         }
 
-                        const maxTokens = schema.getMaxTokens(bodyBuffer)
+                        const maxTokens = handler.getMaxOutputUnits(bodyBuffer)
                         if (maxTokens && maxTokens > provider.limit.payload.output) {
                             Logger.warnKey(identityKey, `requests too many output tokens. ${maxTokens.toLocaleString()} > ${provider.limit.payload.output.toLocaleString()}`)
                             return status(400, schema.errorObject(`Output token limit exceeded. Maximum ${provider.limit.payload.output.toLocaleString()} tokens. ${maxTokens.toLocaleString()} tokens requested.`, 'invalid_request_error', 'token_limit_exceeded'))
                         }
                     }
 
-                    Logger.entry(identityKey, identity.schema, provider.id, modelId, `chat completion request. input tokens: ${requestToken.toLocaleString()}`)
+                    const modelId = handler.getModelId(bodyBuffer)
+                    Logger.entry(identityKey, identity.schema, provider.id, modelId ?? 'unknown', `${endpointType} request. input tokens: ${requestToken.toLocaleString()}`)
 
                     try {
                         instance.server?.publish('provider.info', JSON.stringify(

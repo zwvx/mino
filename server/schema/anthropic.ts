@@ -1,7 +1,13 @@
 import { SchemaRequest } from './base'
 import { estimateTokenCount } from 'tokenx'
+import type { Attachment } from '@/types/attachment'
+import { fileTypeFromBuffer } from 'file-type'
 
 export class AnthropicRequest extends SchemaRequest {
+    protected override endpointPatterns = {
+        chat_completion: ['/v1/messages']
+    }
+
     override additionalStripHeaders = ['authorization']
 
     override setProviderKey(key: string) {
@@ -130,5 +136,44 @@ export class AnthropicRequest extends SchemaRequest {
     override rewriteModelInBody(bodyBuffer: ArrayBuffer, newModelId: string): ArrayBuffer {
         // todo.
         return bodyBuffer
+    }
+
+    override async getAttachments(bodyBuffer: ArrayBuffer): Promise<Attachment[]> {
+        const attachments: Attachment[] = []
+        try {
+            const decoder = new TextDecoder()
+            const body = decoder.decode(bodyBuffer)
+            const json = JSON.parse(body)
+
+            if (json.messages && Array.isArray(json.messages)) {
+                for (const message of json.messages) {
+                    if (Array.isArray(message.content)) {
+                        for (const part of message.content) {
+                            if (part.type === 'image' && part.source?.type === 'base64' && part.source?.data) {
+                                const base64Data = part.source.data
+                                const buffer = Buffer.from(base64Data, 'base64')
+                                const type = await fileTypeFromBuffer(buffer)
+                                attachments.push({
+                                    mimetype: part.source.media_type || type?.mime || 'unknown',
+                                    data: buffer,
+                                    size: buffer.length
+                                })
+                            }
+                            if (part.type === 'document' && part.source?.type === 'base64' && part.source?.data) {
+                                const base64Data = part.source.data
+                                const buffer = Buffer.from(base64Data, 'base64')
+                                const type = await fileTypeFromBuffer(buffer)
+                                attachments.push({
+                                    mimetype: part.source.media_type || type?.mime || 'unknown',
+                                    data: buffer,
+                                    size: buffer.length
+                                })
+                            }
+                        }
+                    }
+                }
+            }
+        } catch { }
+        return attachments
     }
 }

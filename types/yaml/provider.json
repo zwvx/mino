@@ -202,6 +202,13 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
+                "strip_mode": {
+                    "type": "string",
+                    "enum": [
+                        "default",
+                        "minimal"
+                    ]
+                },
                 "headers": {
                     "type": "array",
                     "items": {

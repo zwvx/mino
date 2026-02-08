@@ -1,9 +1,24 @@
+import type { EndpointType } from '@/types/endpoint-types'
+import { fileTypeFromBuffer } from 'file-type'
+import type { Attachment } from '@/types/attachment'
+
 export class SchemaRequest {
     request: Request
     additionalStripHeaders: string[] = []
 
+    protected endpointPatterns: Partial<Record<EndpointType, string[]>> = {}
+
     constructor(request: Request) {
         this.request = request
+    }
+
+    getEndpointType(path: string): EndpointType {
+        for (const [type, patterns] of Object.entries(this.endpointPatterns)) {
+            if (patterns && patterns.some(p => path.endsWith(p) || path === p)) {
+                return type as EndpointType
+            }
+        }
+        return 'passthrough'
     }
 
     setProviderKey(key: string) { }
@@ -31,6 +46,28 @@ export class SchemaRequest {
         ]
 
         for (const header of headers) {
+            this.request.headers.delete(header)
+        }
+    }
+
+    stripHeadersMinimal(overrideHeaders: { key: string; value: string }[] = []) {
+        const allowedHeaders = new Set([
+            'content-type',
+            'accept',
+        ])
+
+        for (const header of overrideHeaders) {
+            allowedHeaders.add(header.key.toLowerCase())
+        }
+
+        const headersToDelete: string[] = []
+        this.request.headers.forEach((_, key) => {
+            if (!allowedHeaders.has(key.toLowerCase())) {
+                headersToDelete.push(key)
+            }
+        })
+
+        for (const header of headersToDelete) {
             this.request.headers.delete(header)
         }
     }
@@ -98,6 +135,10 @@ export class SchemaRequest {
         return bodyBuffer
     }
 
+    async getAttachments(bodyBuffer: ArrayBuffer): Promise<Attachment[]> {
+        return []
+    }
+
     parseModelsResponse(data: Record<string, any>): string[] {
         if (data.data && Array.isArray(data.data)) {
             return data.data.map((m: { id: string }) => m.id)
@@ -109,3 +150,4 @@ export class SchemaRequest {
         return searchParams
     }
 }
+
