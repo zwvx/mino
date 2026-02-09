@@ -10,3 +10,6 @@
 [submodule "modules/ups"]
 	path = modules/ups
 	url = git@github.com:zwvx/mino-upstream.git
+[submodule "docs"]
+	path = docs
+	url = git@github.com:zwvx/mino-docs.git
