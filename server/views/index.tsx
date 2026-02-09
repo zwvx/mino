@@ -50,36 +50,38 @@ export const Index = async () => {
                         {motdHtml as 'safe'}
                     </div>
 
-                    {Object.entries(providers).map(([name, data]: [string, any]) => (
-                        <details class="group">
-                            <summary class="cursor-pointer hover:text-[#fff] select-none text-[#aaa] group-open:text-[#eee]">
-                                {name}
-                            </summary>
+                    {Object.entries(providers)
+                        .filter(([_, data]: [string, any]) => !data.hidden)
+                        .map(([name, data]: [string, any]) => (
+                            <details class="group">
+                                <summary class="cursor-pointer hover:text-[#fff] select-none text-[#aaa] group-open:text-[#eee]">
+                                    {name}
+                                </summary>
 
-                            <div class="pl-4 py-1 space-y-0.5 font-mono text-sm text-[#888] overflow-x-auto whitespace-nowrap">
-                                <div class="flex gap-4">
-                                    <span class="w-16 text-[#555] shrink-0">auth</span>
-                                    {data.require_auth ? <span class="text-[#d86060]">required</span> : <span class="text-[#60d860]">no auth</span>}
-                                </div>
-                                <div class="flex gap-4">
-                                    <span class="w-16 text-[#555] shrink-0">endpoint</span>
-                                    <span><a href={`${base}/x/${name}/`} target="_blank" rel="noopener noreferrer" class="text-[#6086d8]">{base}/x/{name}/</a></span>
-                                </div>
-                                {data.schema && data.schema.length > 0 && (
+                                <div class="pl-4 py-1 space-y-0.5 font-mono text-sm text-[#888] overflow-x-auto whitespace-nowrap">
                                     <div class="flex gap-4">
-                                        <span class="w-16 text-[#555] shrink-0">schemas</span>
-                                        <span class="text-[#d8b060]">
-                                            [{data.schema.map((s: any) => s.id).join(', ')}]
-                                        </span>
+                                        <span class="w-16 text-[#555] shrink-0">auth</span>
+                                        {data.require_auth ? <span class="text-[#d86060]">required</span> : <span class="text-[#60d860]">no auth</span>}
                                     </div>
-                                )}
-                                <div class="flex gap-4">
-                                    <span class="w-16 text-[#555] shrink-0">info</span>
-                                    <span>keys: <span id={`keys:${name}`}>-</span> • total: <span id={`spent:${name}`}>-</span></span>
+                                    <div class="flex gap-4">
+                                        <span class="w-16 text-[#555] shrink-0">endpoint</span>
+                                        <span><a href={`${base}/x/${name}/`} target="_blank" rel="noopener noreferrer" class="text-[#6086d8]">{base}/x/{name}/</a></span>
+                                    </div>
+                                    {data.schema && data.schema.length > 0 && (
+                                        <div class="flex gap-4">
+                                            <span class="w-16 text-[#555] shrink-0">schemas</span>
+                                            <span class="text-[#d8b060]">
+                                                [{data.schema.map((s: any) => s.id).join(', ')}]
+                                            </span>
+                                        </div>
+                                    )}
+                                    <div class="flex gap-4">
+                                        <span class="w-16 text-[#555] shrink-0">info</span>
+                                        <span>keys: <span id={`keys:${name}`}>-</span> • total: <span id={`spent:${name}`}>-</span></span>
+                                    </div>
                                 </div>
-                            </div>
-                        </details>
-                    ))}
+                            </details>
+                        ))}
 
                     <div class="mt-8 pt-4 border-t border-dashed border-[#222] font-mono text-xs text-[#666] whitespace-nowrap">
                         <div class="flex gap-4">
