@@ -178,9 +178,10 @@ export class MinoDatabase {
 
             const totalInputSpent = calcSpentPerScale(providerInfo.totalTokensInput, provider.pricing.input.value, provider.pricing.input.token_scale)
             const totalOutputSpent = calcSpentPerScale(providerInfo.totalTokensOutput, provider.pricing.output.value, provider.pricing.output.token_scale)
+            const totalRequestSpent = (providerInfo.totalRequest || 0) * (provider.pricing.request || 0)
 
             const usFormat = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
-            const totalSpent = usFormat.format(totalInputSpent + totalOutputSpent)
+            const totalSpent = usFormat.format(totalInputSpent + totalOutputSpent + totalRequestSpent)
 
             providerInfos.push({
                 keys: {

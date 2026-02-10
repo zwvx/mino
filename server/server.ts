@@ -21,6 +21,7 @@ import { FallbackView } from './views/fallback'
 import { ProviderView } from './views/provider'
 
 import { proxyResponseStream, interceptFirstChunk } from './utils/stream'
+import { saveImageFromResponse, cleanupTempImages, sanitize, getOrCreateThumbnail } from './utils/image-store'
 import { parseDuration, msToHuman } from '@/utils/time'
 import type { ResponseValidator } from '@/modules/scripts/response_validation/types'
 import type { ProviderPreflight } from '@/modules/scripts/request_preflight/base'
@@ -126,6 +127,7 @@ export async function startServer() {
         .use(ip).use(identity).use(cors()).use(html())
         .onBeforeHandle(({ ip, country, status, request }) => {
             if (!ip || !country) {
+                console.warn(`a request was made without an IP or country code: ${ip}, ${country}, ${request.method}, ${request.url}`)
                 return status(403, 'Invalid IP or country code')
             }
 
@@ -168,9 +170,46 @@ export async function startServer() {
 
             return status(400, { success: false, error: 'verification failed' })
         })
+        .get('/gallery/:provider/:filename', async ({ params, request, status }) => {
+            const { provider, filename } = params
+            if (!filename.startsWith(sanitize(provider) + '_')) return status(403)
+
+            const file = Bun.file(`temp/${filename}`)
+            if (!await file.exists()) return status(404)
+
+            const etag = `"${Bun.hash.crc32(await file.arrayBuffer()).toString(16)}"`
+            if (request.headers.get('if-none-match') === etag) return status(304)
+
+            return new Response(file, {
+                headers: {
+                    'Content-Type': file.type,
+                    'Cache-Control': 'public, max-age=86400, immutable',
+                    'ETag': etag
+                }
+            })
+        })
+        .get('/gallery/:provider/thumb/:filename', async ({ params, request, status }) => {
+            const { provider, filename } = params
+            if (!filename.startsWith(sanitize(provider) + '_')) return status(403)
+
+            const thumb = await getOrCreateThumbnail(filename)
+            if (!thumb) return status(404)
+
+            const etag = `"${Bun.hash.crc32(thumb).toString(16)}"`
+            if (request.headers.get('if-none-match') === etag) return status(304)
+
+            return new Response(thumb as unknown as BodyInit, {
+                headers: {
+                    'Content-Type': 'image/webp',
+                    'Cache-Control': 'public, max-age=86400, immutable',
+                    'ETag': etag
+                }
+            })
+        })
         .all('/x/*', async ({ request, ip, country, identity, status }) => {
             const requestStart = perf.now()
 
+            if (request.method === 'OPTIONS') return status(204)
             if (!['GET', 'POST'].includes(request.method)) return status(403, 'Invalid request method')
 
             const pathname = new URL(request.url).pathname
@@ -206,11 +245,15 @@ export async function startServer() {
             if (!identity.schema) return status(400)
 
             if (provider.require_auth) {
-                if (!identity.user) return status(403, 'Invalid authentication')
+                if (!identity.user) {
+                    console.warn(`[${country}:${ip}] invalid authentication.`)
+                    return status(403, 'Invalid authentication')
+                }
 
                 if (identity.user.tier !== 'ADMIN') {
                     const allowedProviders = await Mino.Database.getUserAllowedProviders(identity.user.id)
                     if (!allowedProviders.find((p) => p.providerId === provider.id)) {
+                        console.warn(`[${country}:${ip}] User token <${identity.user.id}> is trying to access provider <${provider.id}> without permission.`)
                         return status(403, 'User token is not allowed for this provider')
                     }
                 }
@@ -232,6 +275,7 @@ export async function startServer() {
             let endpointType: EndpointType = 'passthrough'
             let handler: EndpointHandler | undefined
             let outputTokens: number = 0
+            let requestModelId: string | null = null
 
             let providerCooldown: string = provider.cooldown.default
             let cooldownType: string = 'default'
@@ -287,6 +331,8 @@ export async function startServer() {
                             wsObject('active.session', { value: await Mino.Memory.getTotalActiveRequests() })
                         ))
                     } catch { }
+                } else if (handler && handler.type !== 'passthrough') {
+                    Logger.completion(identityKey, identity.schema!, pathname, `${(perf.now() - requestStart).toFixed(2)}ms`)
                 } else {
                     Logger.completionSimple(identityKey, identity.schema!, pathname, `${(perf.now() - requestStart).toFixed(2)}ms`)
                 }
@@ -307,6 +353,14 @@ export async function startServer() {
                         } catch { }
                     }
                     await Mino.Database.incrProviderRequest(provider.id)
+
+                    if (requestModelId) {
+                        Mino.Memory.recordModelLatency(provider.id, requestModelId, perf.now() - requestStart)
+                    }
+
+                    if (endpointType === 'image_generation') {
+                        saveImageFromResponse(responseContent, provider.id, requestModelId ?? 'unknown').catch(() => { })
+                    }
                 } catch (err) {
                     Logger.fail(identityKey, 'error in handleResponseComplete:', err)
                 } finally {
@@ -396,6 +450,7 @@ export async function startServer() {
                 if (handler?.validateModel && bodyBuffer) {
                     const modelId = handler.getModelId(bodyBuffer)
                     if (modelId) {
+                        requestModelId = modelId
                         const models = Mino.Memory.getProviderModels(provider.id)
                         if (models && !models.includes(modelId) && identity.user?.tier !== 'ADMIN') {
                             Logger.warnKey(identityKey, `tried to use model "${modelId}" but it is not allowed or not found.`)
@@ -443,6 +498,9 @@ export async function startServer() {
                             wsObject('active.session', { value: await Mino.Memory.getTotalActiveRequests() })
                         ))
                     } catch { }
+                } else if (handler && bodyBuffer) {
+                    const modelId = handler.getModelId(bodyBuffer)
+                    Logger.entry(identityKey, identity.schema!, provider.id, modelId ?? 'unknown', `${endpointType} request`)
                 }
 
                 let retryCount = 0
@@ -743,6 +801,10 @@ export async function startServer() {
             ))
         }
     }, 5000)
+
+    setInterval(() => {
+        cleanupTempImages(24 * 60 * 60 * 1000).catch(() => { })
+    }, 60 * 60 * 1000)
 
     return instance
 }

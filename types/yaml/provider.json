@@ -252,6 +252,9 @@
                 },
                 "output": {
                     "$ref": "#/definitions/PriceData"
+                },
+                "request": {
+                    "type": "number"
                 }
             },
             "required": [

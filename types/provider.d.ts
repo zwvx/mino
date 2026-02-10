@@ -70,6 +70,7 @@ export interface PathOverride {
 export interface Pricing {
     input: Put;
     output: Put;
+    request?: number;
 }
 
 export interface Put {

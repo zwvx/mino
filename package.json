@@ -25,6 +25,7 @@
     "ipaddr.js": "^2.3.0",
     "jspdf": "^4.1.0",
     "marked": "^17.0.1",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4.1.18",
     "tokenx": "^1.2.1"
   },

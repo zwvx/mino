@@ -26,7 +26,14 @@ export const ProviderView = async ({ provider }: Props) => {
             if (!FeatureClass) continue
 
             const feature = new FeatureClass(provider, cfg.options)
-            const data = Mino.Memory.getFeatureData(provider.id, cfg.id)
+            const interval = feature.getInterval()
+            let data = null
+
+            if (interval > 0) {
+                data = Mino.Memory.getFeatureData(provider.id, cfg.id)
+            } else {
+                data = await feature.collect()
+            }
 
             featureElements.push(
                 <div class="mt-6 pt-4 border-t border-dashed border-[#222]">

@@ -6,7 +6,9 @@ export { ProviderFeature, type FeatureData }
 type FeatureClass = new (provider: Provider, options?: PageFeature['options']) => ProviderFeature
 
 const registry: Record<string, string> = {
-    'model_ttft_health': './model_ttft_health.tsx'
+    'model_ttft_health': './model_ttft_health.tsx',
+    'image_gallery': './image_gallery.tsx',
+    'model_latency': './model_latency.tsx'
 }
 
 export async function loadFeature(featureId: string): Promise<FeatureClass | null> {

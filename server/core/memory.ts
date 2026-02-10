@@ -28,7 +28,49 @@ export class MinoMemory {
     KeyConcurrency = new Map<string, { providerKeysId: string; count: number }>()
     Providers: Record<string, Provider> = {}
     ProviderModels = new Map<string, string[]>()
+    ProviderModelLatency = new Map<string, Map<string, number[]>>()
     FeatureData = new Map<string, Map<string, any>>()
+
+    recordModelLatency(providerId: string, modelId: string, latency: number) {
+        if (!latency || latency <= 0) return
+
+        let providerMap = this.ProviderModelLatency.get(providerId)
+        if (!providerMap) {
+            providerMap = new Map()
+            this.ProviderModelLatency.set(providerId, providerMap)
+        }
+
+        let latencies = providerMap.get(modelId)
+        if (!latencies) {
+            latencies = []
+            providerMap.set(modelId, latencies)
+        }
+
+        latencies.push(latency)
+        if (latencies.length > 50) {
+            latencies.shift()
+        }
+    }
+
+    getModelLatencyStats(providerId: string) {
+        const providerMap = this.ProviderModelLatency.get(providerId)
+        if (!providerMap) return {}
+
+        const stats: Record<string, { avg: number, min: number, max: number, count: number }> = {}
+
+        for (const [modelId, latencies] of providerMap) {
+            if (latencies.length === 0) continue
+
+            const sum = latencies.reduce((a, b) => a + b, 0)
+            const avg = Math.round(sum / latencies.length)
+            const min = Math.min(...latencies)
+            const max = Math.max(...latencies)
+
+            stats[modelId] = { avg, min: Math.round(min), max: Math.round(max), count: latencies.length }
+        }
+
+        return stats
+    }
 
     BlockedCIDR: BlockedCIDR = []
 
