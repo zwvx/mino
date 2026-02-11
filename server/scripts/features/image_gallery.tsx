@@ -47,7 +47,7 @@ class ImageGallery extends ProviderFeature {
                     ))}
                 </div>
                 <div class="text-[#444] text-[10px] text-right mt-2">
-                    {data.images.length} image{data.images.length !== 1 ? 's' : ''} • updated {this.timeAgo(data.updatedAt)}
+                    {data.images.length} image{data.images.length !== 1 ? 's' : ''}
                 </div>
             </div>
         )

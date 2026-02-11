@@ -33,7 +33,7 @@ class ModelLatency extends ProviderFeature {
             <div class="space-y-2">
                 <div class="grid gap-2">
                     {sortedModels.map(([modelId, stat]) => (
-                        <div class="bg-[#141414] border border-[#222] rounded px-2.5 py-2 flex flex-col hover:border-[#333] transition-colors duration-300">
+                        <div class="bg-[#141414] border border-[#222] rounded px-2.5 pb-2 pt-[9px] flex flex-col hover:border-[#333] transition-colors duration-300">
                             <div class="flex justify-between font-mono text-[11px] items-center leading-none mb-1.5">
                                 <span class="text-[#888] truncate pr-2" title={modelId}>{modelId}</span>
                                 <span class="text-[#ccc] shrink-0">{(stat.avg / 1000).toFixed(2)}s</span>
@@ -47,14 +47,11 @@ class ModelLatency extends ProviderFeature {
                                     />
                                 </div>
                                 <div class="text-[9px] text-[#555] font-mono whitespace-nowrap">
-                                    {(stat.min / 1000).toFixed(2)} - {(stat.max / 1000).toFixed(2)}s
+                                    {(stat.min / 1000).toFixed(2)}s - {(stat.max / 1000).toFixed(2)}s
                                 </div>
                             </div>
                         </div>
                     ))}
-                </div>
-                <div class="text-[#444] text-[10px] text-right">
-                    updated {this.timeAgo(data.updatedAt)}
                 </div>
             </div>
         )
