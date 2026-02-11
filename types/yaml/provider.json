@@ -325,6 +325,12 @@
                         "string",
                         "null"
                     ]
+                },
+                "error_validation": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
                 }
             },
             "required": [

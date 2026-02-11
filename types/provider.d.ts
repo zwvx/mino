@@ -89,6 +89,7 @@ export interface Scripts {
     checker: string | null;
     preflight: string | null;
     response_validation?: string | null;
+    error_validation?: string | null;
 }
 
 export interface Cooldown {

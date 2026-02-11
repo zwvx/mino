@@ -95,10 +95,19 @@ export class MinoMemory {
         console.log('memory successfully loaded')
     }
 
-    async loadProviderModels() {
+    async loadProviderModels(targetProviderId?: string) {
         const MAX_RETRIES = Mino.Config.memory.max_model_fetch_retries
 
-        for (const [providerId, provider] of Object.entries(this.Providers)) {
+        const entries = targetProviderId
+            ? [[targetProviderId, this.Providers[targetProviderId]] as const].filter(([, p]) => p)
+            : Object.entries(this.Providers)
+
+        for (const [providerId, provider] of entries) {
+            if (!providerId || !provider) {
+                console.warn(`invalid providerId or provider, skipping`, providerId, provider)
+                continue
+            }
+
             if (!provider.enable) continue
 
             if (provider.override && provider.override.models.length > 0) {

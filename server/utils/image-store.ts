@@ -100,7 +100,6 @@ export async function cleanupTempImages(maxAgeMs: number): Promise<void> {
             if (now - ts > maxAgeMs) {
                 try {
                     await unlink(`${TEMP_DIR}/${entry}`)
-                    // also remove its thumbnail if it exists
                     await unlink(`${THUMBS_DIR}/${entry}.webp`).catch(() => { })
                     removed++
                 } catch { }
@@ -136,8 +135,8 @@ export async function getOrCreateThumbnail(filename: string): Promise<Buffer | n
 
         const thumbBuffer = await sharp(srcBuffer)
             .resize({
-                width: Math.round(metadata.width * 0.7),
-                height: Math.round(metadata.height * 0.7),
+                width: Math.round(metadata.width * 0.5),
+                height: Math.round(metadata.height * 0.5),
                 fit: 'inside',
                 withoutEnlargement: true
             })

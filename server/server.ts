@@ -24,6 +24,7 @@ import { proxyResponseStream, interceptFirstChunk } from './utils/stream'
 import { saveImageFromResponse, cleanupTempImages, sanitize, getOrCreateThumbnail } from './utils/image-store'
 import { parseDuration, msToHuman } from '@/utils/time'
 import type { ResponseValidator } from '@/modules/scripts/response_validation/types'
+import type { ErrorValidator } from '@/modules/scripts/error_validation/types'
 import type { ProviderPreflight } from '@/modules/scripts/request_preflight/base'
 
 import type { EndpointType } from '@/types/endpoint-types'
@@ -560,6 +561,49 @@ export async function startServer() {
                         const statusCode = response.status
                         const isRetryable = [401, 402, 403, 429].includes(statusCode) || statusCode >= 500
 
+                        if (isRetryable && provider.scripts?.error_validation) {
+                            let errorValidator: ErrorValidator | null = null
+                            try {
+                                const mod = await import(`@/modules/scripts/error_validation/${provider.scripts.error_validation}`)
+                                errorValidator = mod.default as ErrorValidator
+                            } catch { }
+
+                            if (errorValidator) {
+                                const errorBody = await response.text().catch(() => '')
+                                const result = errorValidator(statusCode, errorBody)
+
+                                if (result.handled) {
+                                    if (result.invalidateKey) {
+                                        if (!provider.concurrency.keys.key_stay_active) {
+                                            await Mino.Database.setProviderKeyState(providerKey.key, result.keyState)
+                                        }
+                                        Mino.Memory.invalidateKey(identityKey, provider.keys_id)
+                                        Mino.Memory.decrKeyConcurrency(providerKey.key)
+                                        if (registeredRequestId) {
+                                            Mino.Memory.clearRequestAllocatedKey(identityKey, registeredRequestId)
+                                        }
+                                        allocatedKeyId = null
+                                    } else {
+                                        Mino.Memory.incrKeyUsage(identityKey, provider.keys_id)
+                                    }
+
+                                    if (result.retryable) {
+                                        retryCount++
+                                        Logger.retry(identityKey, retryCount, maxRetryCount)
+                                        continue
+                                    }
+
+                                    return status(
+                                        result.statusCode || statusCode,
+                                        schema.errorObject(
+                                            result.errorMessage || 'Provider error',
+                                            'api_error'
+                                        )
+                                    )
+                                }
+                            }
+                        }
+
                         if (!isRetryable) {
                             Mino.Memory.incrKeyUsage(identityKey, provider.keys_id)
 
@@ -708,6 +752,81 @@ export async function startServer() {
                 }
             }
         })
+        .group('/admin', (admin) => admin
+            .onBeforeHandle(async ({ headers, status }) => {
+                const token = headers['authorization']?.replace('Bearer ', '').trim()
+                if (!token) return status(401, { error: 'Authorization required' })
+
+                const user = await Mino.Database.getUserFromToken(token)
+                if (!user || user.tier !== 'ADMIN') return status(403, { error: 'Admin access required' })
+            })
+            .post('/provider/reload', async ({ body, status }) => {
+                try {
+                    const { provider } = (body as { provider?: string }) ?? {}
+
+                    const snapshotPageFields = (p: typeof Mino.Memory.Providers[string]) => ({
+                        hidden: p.hidden,
+                        enable: p.enable,
+                        require_auth: p.require_auth,
+                        schema_ids: p.schema?.map((s) => s.id).join(',') ?? ''
+                    })
+
+                    const before = new Map<string, ReturnType<typeof snapshotPageFields>>()
+                    if (provider) {
+                        const existing = Mino.Memory.Providers[provider]
+                        if (existing) before.set(provider, snapshotPageFields(existing))
+                    } else {
+                        for (const [id, p] of Object.entries(Mino.Memory.Providers)) {
+                            before.set(id, snapshotPageFields(p))
+                        }
+                    }
+
+                    if (provider) {
+                        await Mino.Memory.loadProvider(provider)
+                        await Mino.Memory.loadProviderModels(provider)
+                    } else {
+                        await Mino.Memory.loadProvider()
+                        await Mino.Memory.loadProviderModels()
+                    }
+
+                    let needsRefresh = false
+                    const afterProviders = provider
+                        ? { [provider]: Mino.Memory.Providers[provider] }
+                        : Mino.Memory.Providers
+
+                    const allIds = new Set([...before.keys(), ...Object.keys(afterProviders)])
+                    for (const id of allIds) {
+                        const old = before.get(id)
+                        const cur = afterProviders[id]
+                        if (!old || !cur) { needsRefresh = true; break }
+
+                        const after = snapshotPageFields(cur)
+                        if (old.hidden !== after.hidden ||
+                            old.enable !== after.enable ||
+                            old.require_auth !== after.require_auth ||
+                            old.schema_ids !== after.schema_ids) {
+                            needsRefresh = true
+                            break
+                        }
+                    }
+
+                    if (needsRefresh) {
+                        Mino.Session = Math.random().toString(36).slice(2)
+                        instance.server?.publish('provider.info', JSON.stringify(
+                            wsObject('init', { session: Mino.Session })
+                        ))
+                        Logger.info(`[Admin] session refreshed, clients will reload`)
+                    }
+
+                    const reloaded = provider ? [provider] : Object.keys(Mino.Memory.Providers)
+                    Logger.info(`[Admin] reloaded provider: ${reloaded.join(', ')}`)
+                    return { success: true, providers: reloaded, refreshed: needsRefresh }
+                } catch (err) {
+                    Logger.error('[Admin] reload failed:', err)
+                    return status(500, { error: err instanceof Error ? err.message : 'Unknown error' })
+                }
+            })
+        )
         .ws('/mino', {
             open: async (ws) => {
                 const ip = ws.data?.ip as string || 'unknown'
