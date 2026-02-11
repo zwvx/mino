@@ -102,9 +102,12 @@ export class MinoServices {
 
                 await Mino.Database.setProviderKeyState(key, result.result, false)
                 if (result.metadata) {
-                    metadataObj = { info: result.metadata }
+                    const { endpoint: checkerEndpoint, ...info } = result.metadata
+                    metadataObj = { info }
 
-                    if (keyData.metadata?.endpoint) {
+                    if (checkerEndpoint) {
+                        metadataObj.endpoint = checkerEndpoint
+                    } else if (keyData.metadata?.endpoint) {
                         metadataObj.endpoint = keyData.metadata.endpoint
                     }
 
