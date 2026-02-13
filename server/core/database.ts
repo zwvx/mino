@@ -186,7 +186,7 @@ export class MinoDatabase {
             providerInfos.push({
                 keys: {
                     id: `keys:${pid}`,
-                    value: totalKeys.length.toString()
+                    value: provider.display?.keys_count_label ?? totalKeys.length.toString()
                 },
                 spent: {
                     id: `spent:${pid}`,

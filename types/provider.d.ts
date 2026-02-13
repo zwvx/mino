@@ -15,6 +15,7 @@ export interface Provider {
     keys_metadata?: { key: string; value: any }[];
     enable: boolean;
     hidden: boolean;
+    display?: Display;
     require_auth: boolean;
     endpoint: Endpoint;
     schema: Schema[];
@@ -110,4 +111,8 @@ export interface PageFeature {
 export interface Page {
     message?: string
     features?: PageFeature[]
+}
+
+export interface Display {
+    keys_count_label?: string
 }

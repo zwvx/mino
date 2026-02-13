@@ -77,9 +77,14 @@ export class OpenAIRequest extends SchemaRequest {
     override parseSSEChatResponse(content: string) {
         try {
             let result = ''
+            let usageTokens = 0
 
             if (content.trim().startsWith('{')) {
                 const json = JSON.parse(content)
+                if (json.usage?.completion_tokens) {
+                    usageTokens = json.usage.completion_tokens
+                }
+
                 if (json.choices && Array.isArray(json.choices)) {
                     for (const choice of json.choices) {
                         result += (choice.message?.content || '')
@@ -88,10 +93,20 @@ export class OpenAIRequest extends SchemaRequest {
             } else {
                 const lines = content.split('\n')
                 for (const line of lines) {
-                    if (line.trim() === 'data: [DONE]') continue
-                    if (line.startsWith('data: ')) {
+                    const trimmed = line.trim()
+                    if (trimmed === 'data: [DONE]') continue
+
+                    if (trimmed.startsWith('data:')) {
                         try {
-                            const json = JSON.parse(line.slice(6))
+                            const jsonStr = trimmed.slice(5).trim()
+                            if (!jsonStr) continue
+
+                            const json = JSON.parse(jsonStr)
+
+                            if (json.usage?.completion_tokens) {
+                                usageTokens = json.usage.completion_tokens
+                            }
+
                             if (json.choices && Array.isArray(json.choices)) {
                                 for (const choice of json.choices) {
                                     result += (choice.delta?.content || '')
@@ -104,7 +119,7 @@ export class OpenAIRequest extends SchemaRequest {
 
             return {
                 content: result,
-                tokenCount: estimateTokenCount(result)
+                tokenCount: usageTokens > 0 ? usageTokens : estimateTokenCount(result)
             }
         } catch {
             return {

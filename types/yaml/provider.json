@@ -47,6 +47,9 @@
                 "hidden": {
                     "type": "boolean"
                 },
+                "display": {
+                    "$ref": "#/definitions/Display"
+                },
                 "require_auth": {
                     "type": "boolean"
                 },
@@ -395,6 +398,16 @@
                 }
             },
             "title": "PageFeatureOptions"
+        },
+        "Display": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "keys_count_label": {
+                    "type": "string"
+                }
+            },
+            "title": "Display"
         }
     }
 }
