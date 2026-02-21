@@ -8,7 +8,7 @@ import { marked } from 'marked'
 import { ip } from './plugins/cloudflare'
 import { identity } from './plugins/identity'
 import { matchProvider } from './utils/route'
-import { checkRequestSpike, markIpVerified } from './security/request-spike'
+import { checkRequestSpike, markIpVerified, isIpVerified } from './security/request-spike'
 
 import * as requestSchema from './schema'
 import type { SchemaRequestType } from './schema'
@@ -139,12 +139,18 @@ export async function startServer() {
         .get('/', async () => {
             return await Index()
         })
-        .get('/verify', async () => {
+        .get('/verify', async ({ ip }) => {
+            if (ip && isIpVerified(ip)) {
+                return Response.redirect('/', 302)
+            }
             return await Verify()
         })
         .post('/verify', async ({ request, ip, status }) => {
             const body = await request.json().catch(() => null) as { token?: string } | null
             if (!body?.token) {
+                if (ip && isIpVerified(ip)) {
+                    return { success: true }
+                }
                 return status(400, { success: false, error: 'missing token' })
             }
 
@@ -561,7 +567,9 @@ export async function startServer() {
                         const statusCode = response.status
                         const isRetryable = [401, 402, 403, 429].includes(statusCode) || statusCode >= 500
 
-                        if (isRetryable && provider.scripts?.error_validation) {
+                        const errorBody = await response.text().catch(() => '')
+
+                        if (provider.scripts?.error_validation) {
                             let errorValidator: ErrorValidator | null = null
                             try {
                                 const mod = await import(`@/modules/scripts/error_validation/${provider.scripts.error_validation}`)
@@ -569,7 +577,6 @@ export async function startServer() {
                             } catch { }
 
                             if (errorValidator) {
-                                const errorBody = await response.text().catch(() => '')
                                 const result = errorValidator(statusCode, errorBody)
 
                                 if (result.handled) {
@@ -607,7 +614,6 @@ export async function startServer() {
                         if (!isRetryable) {
                             Mino.Memory.incrKeyUsage(identityKey, provider.keys_id)
 
-                            const errorBody = await response.text()
                             Logger.fail(identityKey, `[${provider.id}] non-retryable error ${statusCode}`, errorBody)
 
                             const isHtml = response.headers.get('content-type')?.includes('text/html') || errorBody.trim().startsWith('<')
@@ -624,7 +630,6 @@ export async function startServer() {
                         }
 
                         if (statusCode >= 500) {
-                            const errorBody = await response.text().catch(() => '')
                             Logger.warnKey(identityKey, `[${provider.id}] upstream error ${statusCode}`, errorBody.slice(0, 500))
                         }
 

@@ -111,8 +111,17 @@ export class MinoMemory {
             if (!provider.enable) continue
 
             if (provider.override && provider.override.models.length > 0) {
-                this.setProviderModels(providerId, provider.override.models as string[])
-                console.log(`cached ${provider.override.models.length} models for ${providerId} (override)`)
+                let models = provider.override.models as string[]
+
+                if (provider.remap_models) {
+                    const reverseMap = Object.fromEntries(
+                        Object.entries(provider.remap_models).map(([client, upstream]) => [upstream, client])
+                    )
+                    models = models.map((id) => reverseMap[id] ?? id)
+                }
+
+                this.setProviderModels(providerId, models)
+                console.log(`cached ${models.length} models for ${providerId} (override)`)
                 continue
             }
 

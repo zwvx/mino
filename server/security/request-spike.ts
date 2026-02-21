@@ -72,6 +72,11 @@ export function markIpVerified(ip: string): void {
     }
 }
 
+export function isIpVerified(ip: string): boolean {
+    const verifiedUntil = Mino.Memory.Security.verifiedIps.get(ip)
+    return !!(verifiedUntil && verifiedUntil > Date.now())
+}
+
 export function isSpikeMode(): boolean {
     return checkSpikeExpiry()
 }
