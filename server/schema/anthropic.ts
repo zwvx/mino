@@ -5,7 +5,7 @@ import { fileTypeFromBuffer } from 'file-type'
 
 export class AnthropicRequest extends SchemaRequest {
     protected override endpointPatterns = {
-        chat_completion: ['/v1/messages']
+        chat_completion: ['/v1/messages', '/messages']
     }
 
     override additionalStripHeaders = ['authorization']
@@ -15,7 +15,7 @@ export class AnthropicRequest extends SchemaRequest {
     }
 
     override isChatCompletionEndpoint() {
-        return this.request.url.endsWith('/v1/messages')
+        return this.request.url.endsWith('/v1/messages') || this.request.url.endsWith('/messages')
     }
 
     override isModelListEndpoint(): boolean {
