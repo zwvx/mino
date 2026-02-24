@@ -31,11 +31,9 @@ function activateSpikeMode(reason: string): void {
 
 export function checkRequestSpike(ip: string): boolean {
     const verifiedUntil = Mino.Memory.Security.verifiedIps.get(ip)
-    if (verifiedUntil && verifiedUntil > Date.now()) {
-        return false
-    }
+    const isVerified = !!(verifiedUntil && verifiedUntil > Date.now())
 
-    if (checkSpikeExpiry()) {
+    if (checkSpikeExpiry() && !isVerified) {
         return true
     }
 
@@ -54,12 +52,18 @@ export function checkRequestSpike(ip: string): boolean {
 
     if (ipTimestamps.length > config.per_ip_max_requests) {
         activateSpikeMode(`per-ip threshold exceeded by ${ip}`)
+        if (isVerified) {
+            Mino.Memory.Security.verifiedIps.delete(ip)
+            console.warn(`[Spike] Revoked verification for ${ip} due to per-IP rate limit abuse`)
+        }
         return true
     }
 
     if (prunedGlobal.length > config.global_max_requests) {
         activateSpikeMode(`global threshold exceeded (${prunedGlobal.length} requests)`)
-        return true
+        if (!isVerified) {
+            return true
+        }
     }
 
     return false
