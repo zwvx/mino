@@ -8,7 +8,7 @@ import { marked } from 'marked'
 import { ip } from './plugins/cloudflare'
 import { identity } from './plugins/identity'
 import { matchProvider } from './utils/route'
-import { checkRequestSpike, markIpVerified, isIpVerified } from './security/request-spike'
+import { checkRequestSpike, markIpVerified, isIpVerified, isSpikeMode } from './security/request-spike'
 import { checkBanHeaders } from './security/ban-requests'
 
 import * as requestSchema from './schema'
@@ -147,6 +147,10 @@ export async function startServer() {
             return await Verify()
         })
         .post('/verify', async ({ request, ip, status }) => {
+            if (!isSpikeMode()) {
+                return { success: true }
+            }
+
             const body = await request.json().catch(() => null) as { token?: string } | null
             if (!body?.token) {
                 if (ip && isIpVerified(ip)) {
