@@ -42,6 +42,8 @@ export class SchemaRequest {
             'cdn-loop',
             'referer',
             'origin',
+            'x-title',
+            'http-referer',
             ...this.additionalStripHeaders
         ]
 
