@@ -7,6 +7,9 @@ import { migrate } from 'drizzle-orm/bun-sqlite/migrator'
 import * as schema from '@/data/db/schema'
 
 import { calcSpentPerScale } from '@/utils/math'
+import { FileLogger } from '../utils/file-logger'
+
+const keyStateLog = FileLogger.get('key-state')
 
 export type KeyData = Awaited<ReturnType<typeof Mino.Database.getRandomProviderKey>>
 export type NonNullableKeyData = NonNullable<KeyData>
@@ -60,7 +63,11 @@ export class MinoDatabase {
             .limit(1).get()
     }
 
-    async setProviderKeyState(providerKey: string, state: 'active' | 'ratelimited' | 'error' | 'disabled', log = true) {
+    async setProviderKeyState(
+        providerKey: string,
+        state: 'active' | 'ratelimited' | 'error' | 'disabled',
+        context?: { source?: string, providerId?: string }
+    ) {
         await this.db.update(schema.providerKeys)
             .set({
                 state,
@@ -68,9 +75,15 @@ export class MinoDatabase {
             })
             .where(eq(schema.providerKeys.key, providerKey))
 
-        if (log) {
-            console.log(`provider key <${providerKey.slice(0, 12)}...> state changed to <${state}>`)
-        }
+        const masked = providerKey.length > 16
+            ? `${providerKey.slice(0, 8)}****${providerKey.slice(-4)}`
+            : `${providerKey.slice(0, 4)}****`
+
+        const source = context?.source ?? 'unknown'
+        const providerId = context?.providerId ?? 'unknown'
+
+        keyStateLog.append({ providerId, key: masked, state, source })
+        console.log(`provider key <${providerKey.slice(0, 12)}...> state changed to <${state}> [${source}]`)
     }
 
     async setProviderKeyMetadata(providerKey: string, metadata: schema.ProviderKeyMetadata) {

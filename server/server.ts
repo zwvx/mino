@@ -582,7 +582,7 @@ export async function startServer() {
                                 if (result.handled) {
                                     if (result.invalidateKey) {
                                         if (!provider.concurrency.keys.key_stay_active) {
-                                            await Mino.Database.setProviderKeyState(providerKey.key, result.keyState)
+                                            await Mino.Database.setProviderKeyState(providerKey.key, result.keyState, { source: 'request:error_validation', providerId: provider.id })
                                         }
                                         Mino.Memory.invalidateKey(identityKey, provider.keys_id)
                                         Mino.Memory.decrKeyConcurrency(providerKey.key)
@@ -636,7 +636,7 @@ export async function startServer() {
                         if ([401, 403].includes(statusCode)) {
                             Logger.fail(identityKey, `key <${providerKey.key.slice(0, 12)}...> unauthorized (${statusCode})`)
                             if (!provider.concurrency.keys.key_stay_active) {
-                                await Mino.Database.setProviderKeyState(providerKey.key, 'disabled')
+                                await Mino.Database.setProviderKeyState(providerKey.key, 'disabled', { source: 'request', providerId: provider.id })
                             }
                             invalidateKey = true
                         }
@@ -644,7 +644,7 @@ export async function startServer() {
                         if ([402, 429].includes(statusCode)) {
                             Logger.warnKey(identityKey, `key <${providerKey.key.slice(0, 12)}...> ratelimited (${statusCode})`)
                             if (!provider.concurrency.keys.key_stay_active) {
-                                await Mino.Database.setProviderKeyState(providerKey.key, 'ratelimited')
+                                await Mino.Database.setProviderKeyState(providerKey.key, 'ratelimited', { source: 'request', providerId: provider.id })
                             }
                             invalidateKey = true
                         }
@@ -683,9 +683,9 @@ export async function startServer() {
                                 if (!validationResult.valid) {
                                     if (!provider.concurrency.keys.key_stay_active) {
                                         if (validationResult.keyState === 'disabled') {
-                                            await Mino.Database.setProviderKeyState(providerKey.key, 'disabled')
+                                            await Mino.Database.setProviderKeyState(providerKey.key, 'disabled', { source: 'request:response_validation', providerId: provider.id })
                                         } else if (validationResult.keyState === 'ratelimited') {
-                                            await Mino.Database.setProviderKeyState(providerKey.key, 'ratelimited')
+                                            await Mino.Database.setProviderKeyState(providerKey.key, 'ratelimited', { source: 'request:response_validation', providerId: provider.id })
                                         }
                                     }
 

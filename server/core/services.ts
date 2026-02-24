@@ -100,7 +100,12 @@ export class MinoServices {
                 const result = await instance.check(key, endpoint)
                 let metadataObj: ProviderKeyMetadata | null = null
 
-                await Mino.Database.setProviderKeyState(key, result.result, false)
+                const stateChanged = keyData.state !== result.result
+
+                if (stateChanged) {
+                    await Mino.Database.setProviderKeyState(key, result.result, { source: 'checker', providerId: provider.id })
+                }
+
                 if (result.metadata) {
                     const { endpoint: checkerEndpoint, ...info } = result.metadata
                     metadataObj = { info }
@@ -114,18 +119,8 @@ export class MinoServices {
                     await Mino.Database.setProviderKeyMetadata(key, metadataObj)
                 }
 
-                switch (result.result) {
-                    case 'active':
-                        console.log(`[Checker] provider <${provider.id}> key <${key.slice(0, 12)}...>: active. meta: ${JSON.stringify(metadataObj)}`)
-                        break
-                    case 'disabled':
-                        console.log(`[Checker] provider <${provider.id}> key <${key.slice(0, 12)}...>: disabled. meta: ${JSON.stringify(metadataObj)}`)
-                        break
-                    case 'error':
-                        console.log(`[Checker] provider <${provider.id}> key <${key.slice(0, 12)}...>: error. meta: ${JSON.stringify(metadataObj)}`)
-                        break
-                    default:
-                        break
+                if (stateChanged) {
+                    console.log(`[Checker] provider <${provider.id}> key <${key.slice(0, 12)}...>: ${keyData.state} -> ${result.result}. meta: ${JSON.stringify(metadataObj)}`)
                 }
             } catch (err) {
                 console.error(`failed to check provider key <${provider.id}> <${key.slice(0, 12)}...>:`, err)

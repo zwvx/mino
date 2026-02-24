@@ -113,11 +113,11 @@ class ModelTTFTHealth extends ProviderFeature {
 
                     if ([401, 403].includes(statusCode)) {
                         if (!this.provider.concurrency.keys.key_stay_active) {
-                            await Mino.Database.setProviderKeyState(keyData.key, 'disabled')
+                            await Mino.Database.setProviderKeyState(keyData.key, 'disabled', { source: 'ttft_health', providerId: this.provider.id })
                         }
                     } else if ([402, 429].includes(statusCode)) {
                         if (!this.provider.concurrency.keys.key_stay_active) {
-                            await Mino.Database.setProviderKeyState(keyData.key, 'ratelimited')
+                            await Mino.Database.setProviderKeyState(keyData.key, 'ratelimited', { source: 'ttft_health', providerId: this.provider.id })
                         }
                     }
 
