@@ -9,6 +9,7 @@ import { ip } from './plugins/cloudflare'
 import { identity } from './plugins/identity'
 import { matchProvider } from './utils/route'
 import { checkRequestSpike, markIpVerified, isIpVerified } from './security/request-spike'
+import { checkBanHeaders } from './security/ban-requests'
 
 import * as requestSchema from './schema'
 import type { SchemaRequestType } from './schema'
@@ -381,6 +382,12 @@ export async function startServer() {
                 if (checkRequestSpike(ip!)) {
                     Logger.spike(identityKey)
                     return status(429, schema.errorObject(`Mino is currently under high load. Visit "/verify" to verify your IP.`, 'invalid_request_error', 'under_attack'))
+                }
+
+                const banResult = checkBanHeaders(request.headers)
+                if (banResult.banned) {
+                    Logger.warnKey(identityKey, `banned by header rule: ${banResult.rule}`)
+                    return status(403, schema.errorObject(`Request from ${banResult.rule} is not allowed.`, 'invalid_request_error', 'request_banned'))
                 }
 
                 endpointType = resolveEndpointType(match.endpoint, provider.endpoint_types, schema)
