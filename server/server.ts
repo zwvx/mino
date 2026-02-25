@@ -37,6 +37,9 @@ export function wsObject(type: string, data: Record<string, any>) {
 }
 
 import { Logger } from './utils/logger'
+import { FileLogger } from './utils/file-logger'
+
+const blockedLogger = FileLogger.get('blocked-requests', 'json')
 
 class CursorData {
     private static data = new Map<string, { x: number, y: number, color: string }>()
@@ -137,6 +140,13 @@ export async function startServer() {
 
             if (BlockIpManager.isBlocked(ip)) {
                 Logger.warn(`[BlockIP] Blocked request from IP: ${ip}`)
+                blockedLogger.append({
+                    ip,
+                    country,
+                    method: request.method,
+                    url: request.url,
+                    reason: 'IP Blocked'
+                })
                 return status(403, 'Forbidden')
             }
 
@@ -266,6 +276,14 @@ export async function startServer() {
             if (provider.require_auth) {
                 if (!identity.user) {
                     console.warn(`[${country}:${ip}] invalid authentication.`)
+                    blockedLogger.append({
+                        ip,
+                        country,
+                        method: request.method,
+                        url: request.url,
+                        reason: 'Authentication Required',
+                        identityKey: identity.key
+                    })
                     return status(403, 'Invalid authentication')
                 }
 
@@ -273,6 +291,16 @@ export async function startServer() {
                     const allowedProviders = await Mino.Database.getUserAllowedProviders(identity.user.id)
                     if (!allowedProviders.find((p) => p.providerId === provider.id)) {
                         console.warn(`[${country}:${ip}] User token <${identity.user.id}> is trying to access provider <${provider.id}> without permission.`)
+                        blockedLogger.append({
+                            ip,
+                            country,
+                            method: request.method,
+                            url: request.url,
+                            reason: 'Permission Denied',
+                            identityKey: identity.key,
+                            userId: identity.user.id,
+                            providerId: provider.id
+                        })
                         return status(403, 'User token is not allowed for this provider')
                     }
                 }
@@ -398,6 +426,14 @@ export async function startServer() {
                 const banResult = checkBanHeaders(request.headers)
                 if (banResult.banned) {
                     Logger.warnKey(identityKey, `banned by header rule: ${banResult.rule}`)
+                    blockedLogger.append({
+                        ip,
+                        country,
+                        method: request.method,
+                        url: request.url,
+                        reason: `Header Banned: ${banResult.rule}`,
+                        identityKey: identityKey
+                    })
                     return status(403, schema.errorObject(`Request from ${banResult.rule} is not allowed.`, 'invalid_request_error', 'request_banned'))
                 }
 

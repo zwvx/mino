@@ -1,4 +1,7 @@
 import { Elysia } from 'elysia'
+import { FileLogger } from '../utils/file-logger'
+
+const blockedLogger = FileLogger.get('blocked-requests', 'json')
 
 export const ip = (app: Elysia) =>
     app.derive(async ({ request, status }) => {
@@ -13,6 +16,13 @@ export const ip = (app: Elysia) =>
         if (ip) {
             if (await Mino.Memory.isSubnetBlocked(ip)) {
                 console.warn(`known blocked ip range trying to access mino:`, ip)
+                blockedLogger.append({
+                    ip,
+                    country,
+                    method: request.method,
+                    url: request.url,
+                    reason: 'IP Range Blocked (CIDR)'
+                })
                 return status(403, 'Your IP range is blocked, likely a cloud provider or an intentional ban.')
             }
         }
