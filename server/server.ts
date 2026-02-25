@@ -10,6 +10,7 @@ import { identity } from './plugins/identity'
 import { matchProvider } from './utils/route'
 import { checkRequestSpike, markIpVerified, isIpVerified, isSpikeMode } from './security/request-spike'
 import { checkBanHeaders } from './security/ban-requests'
+import { BlockIpManager } from './security/block-ip'
 
 import * as requestSchema from './schema'
 import type { SchemaRequestType } from './schema'
@@ -123,6 +124,7 @@ class MotdManager {
 }
 
 export async function startServer() {
+    await BlockIpManager.init()
     const serverPort = Number(Bun.env.PORT || Mino.isProduction ? Mino.Config.server.port : Mino.Config.server.port + 1)
 
     const instance = new Elysia()
@@ -131,6 +133,11 @@ export async function startServer() {
             if (!ip || !country) {
                 console.warn(`a request was made without an IP or country code: ${ip}, ${country}, ${request.method}, ${request.url}`)
                 return status(403, 'Invalid IP or country code')
+            }
+
+            if (BlockIpManager.isBlocked(ip)) {
+                Logger.warn(`[BlockIP] Blocked request from IP: ${ip}`)
+                return status(403, 'Forbidden')
             }
 
             if (!request.url.includes('/x/')) {
@@ -144,7 +151,7 @@ export async function startServer() {
             if (ip && isIpVerified(ip)) {
                 return Response.redirect('/', 302)
             }
-            return await Verify()
+            return await Verify({ ip })
         })
         .post('/verify', async ({ request, ip, status }) => {
             if (!isSpikeMode()) {
